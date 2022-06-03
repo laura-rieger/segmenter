@@ -1,14 +1,12 @@
 import os
-import sys
-
 import argparse
 import configparser
 import pickle as pkl
-import sys
-import warnings
+
 from argparse import ArgumentParser
 from copy import deepcopy
 from os.path import join as oj
+from matplotlib.style import use
 import numpy as np
 import torch
 import torch.utils.data
@@ -16,6 +14,7 @@ from torch import optim
 from torch.utils.data import DataLoader, TensorDataset
 
 import models
+import unet_model
 import my_data
 from sklearn.model_selection import train_test_split
 
@@ -32,43 +31,36 @@ def get_args():
     parser.add_argument("--num_epochs", type=int, default=3000)
     parser.add_argument("--experiment_name", type=str, default="")
 
-    parser.add_argument("--dropout", type=float, default=0.0)
-    parser.add_argument("--sequence_length", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--hidden_size_lstm", type=int, default=-1)
-    parser.add_argument("--hidden_size", type=int, default=32)
-    parser.add_argument("--use_augment", type=int, default=1)
-    parser.add_argument("--use_cycle_counter", type=int, default=1)
-    parser.add_argument("--train_percentage", type=float, default=0.5)
-    parser.add_argument("--no_covariates",
-                        action=argparse.BooleanOptionalAction)
 
     ret_args = parser.parse_args()
     return ret_args
 
 
 args = get_args()
-#%%
 
 config = configparser.ConfigParser()
 config.read("../config.ini")
+#%%
 
 save_path = config["PATHS"]["model_path"]
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
-x, y = my_data.load_data(config["DATASET"]["data_path"])
+x, y = my_data.make_rudimentary_dataset(
+    my_data.load_data(config['DATASET']['data_path']),
+    img_size=25,
+    offset=25,
+)
+x = x[:, None]
 
 X_train, X_test, y_train, y_test = train_test_split(x,
                                                     y,
-                                                    test_size=0.2,
+                                                    test_size=0.15,
                                                     random_state=1)
 
 X_train, X_val, y_train, y_val = train_test_split(
-    X_train, y_train, test_size=0.25, random_state=1)  # 0.25 x 0.8 = 0.2
-
-if args.train_percentage != 1:
-    train_idxs = train_idxs[:int(args.train_percentage * len(train_idxs))]
+    X_train, y_train, test_size=0.18, random_state=1)  # 0.25 x 0.8 = 0.2
 
 torch.manual_seed(args.seed)
 train_dataset = TensorDataset(
@@ -89,10 +81,10 @@ val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 input_dim = X_train.shape[
     2]  # Number of input features (e.g. discharge capacity)
 
-model = models.make_model().to(device)
+model = unet_model.UNet(1, 1, use_small=True).to(device)
 
 optimizer = optim.Adam(model.parameters(), )
-loss_function = torch.nn.NLLLoss
+loss_function = torch.nn.BCELoss(reduction='none')
 training_loss = []
 validation_loss = []
 
@@ -114,15 +106,16 @@ for epoch in range(args.num_epochs):
             input_data,
             y_hat,
     ) in enumerate(train_loader):
-        model.reset_hidden_state()
+
         input_data = input_data.to(device)
         y_hat = y_hat.to(device)
         optimizer.zero_grad()
         y_pred = model(input_data, )
 
         # loss
-        loss_state = loss_function(y_pred, y_hat)
-        loss = loss_state
+        loss = loss_function(y_pred[:, 0], y_hat[:, 0])
+        torch.masked_select()
+
         (loss).backward()
         tr_loss += loss.item()
         optimizer.step()
@@ -140,7 +133,7 @@ for epoch in range(args.num_epochs):
                 input_data,
                 y_hat,
         ) in enumerate(val_loader):
-            model.reset_hidden_state()
+
             input_data = input_data.to(device)
             supp_data = supp_data.to(device)
             y_hat = y_hat.to(device)
