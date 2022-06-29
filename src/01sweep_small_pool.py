@@ -7,9 +7,24 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "Template",
+        "Pool",
     ],
-    "seed": [x for x in range(25)],
+    "seed": [x for x in range(1)],
+    "init_train_ratio": [1., .3],
+    "batch-size": [128],
+    "scale": [
+        .5,
+    ],
+    "epochs": [3000],
+    "image-size": [
+        128,
+    ],
+    "add_step": [
+        0,
+    ],
+    "offset": [
+        64,
+    ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -20,11 +35,11 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL",
+        mail_type="FAIL,END",
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:15:00",
+        time="0-02:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
@@ -36,7 +51,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        subprocess.call(cur_function, shell=True)
+        print(cur_function)
+        # subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)

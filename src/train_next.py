@@ -2,7 +2,6 @@ import argparse
 import configparser
 import logging
 import os
-from re import A
 import sys
 from pathlib import Path
 import my_data
@@ -13,13 +12,13 @@ import torch.nn.functional as F
 # import wandb
 from torch import optim
 import pickle as pkl
-from torch.utils.data import DataLoader, random_split, TensorDataset, ConcatDataset
+from torch.utils.data import DataLoader, random_split, TensorDataset
 from tqdm import tqdm
 import numpy as np
 # from torch.utils.data import DataLoader, TensorDataset
 from argparse import ArgumentParser
 from utils.dice_score import dice_loss
-from evaluate import evaluate, aq_cost_function, random_cost_function
+from evaluate import evaluate
 from unet import UNet
 #TODO Seed
 
@@ -56,41 +55,38 @@ def train_net(net,
               image_size=128,
               offset=64,
               amp: bool = False,
-              init_train_ratio=1.0,
-              add_step=0,
-              cost_funct=random_cost_function):
+              init_train_ratio=1.0):
     # 1. Create dataset
     results['val_scores'] = []
     # val_scores = []
-    data = my_data.load_dummy_data(config['DATASET']['data_path'])
-    data = data[:-4]  # just don't touch the last four
-
-    all_idxs = np.arange(len(data))
+    in_imgs, in_targets = my_data.load_data(config['DATASET']['data_path'])
+    in_imgs, in_targets = in_imgs[:
+                                  -2], in_targets[:
+                                                  -2]  #save the last two for test data
+    x, y = my_data.make_rudimentary_dataset(
+        (in_imgs, in_targets),
+        img_size=image_size,
+        offset=offset,
+    )
+    x = x[:, None]
+    all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
-    n_val = np.maximum(int(len(data) * val_percent), 1)
-    n_train = len(data) - n_val
+    n_val = int(len(x) * val_percent)
+    n_train = len(x) - n_val
+
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
-    init_train_idxs = all_train_idxs[:np.
-                                     maximum(1, int(init_train_ratio *
-                                                    n_train))]
-    pool_idxs = all_train_idxs[np.maximum(1, int(init_train_ratio * n_train)):]
+    init_train_idxs = all_train_idxs[:int(init_train_ratio * n_train)]
+
+    pool_idxs = all_train_idxs[int(init_train_ratio * n_train):]
 
     train_set = TensorDataset(*[
-        torch.Tensor(input) for input in my_data.make_dataset(
-            (data[init_train_idxs, 0], data[init_train_idxs, 1]),
-            img_size=image_size,
-            offset=offset,
-        )
+        torch.Tensor(input)
+        for input in [x[init_train_idxs], y[init_train_idxs]]
     ])
-    val_set = TensorDataset(*[
-        torch.Tensor(input) for input in my_data.make_dataset(
-            (data[val_idxs, 0], data[val_idxs, 1]),
-            img_size=image_size,
-            offset=offset,
-        )
-    ])
+    val_set = TensorDataset(
+        *[torch.Tensor(input) for input in [x[val_idxs], y[val_idxs]]])
     num_train = len(train_set)
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=1, pin_memory=True)
@@ -118,8 +114,8 @@ def train_net(net,
                               weight_decay=1e-8,
                               momentum=0.9)
     # optimizer = optim.Adam(net.parameters(), )
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer, 'max', patience=2)  # goal: maximize Dice score
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 'max', patience=2)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss()
     global_step = 0
@@ -128,10 +124,9 @@ def train_net(net,
     best_val_score = 0
     delta = .001
     best_weights = None
-    patience = 5
+    patience = 3
     cur_patience = 0
-
-    break_cond = False
+    division_step = np.maximum((num_train // (10 * batch_size)), 10)
 
     for epoch in range(1, epochs + 1):
         net.train()
@@ -142,6 +137,11 @@ def train_net(net,
                     images,
                     true_masks,
             ) in train_loader:
+
+                # assert images.shape[1] == net.n_channels, \
+                #     f'Network has been defined with {net.n_channels} input channels, ' \
+                #     f'but loaded images have {images.shape[1]} channels. Please check that ' \
+                #     'the images are loaded correctly.'
 
                 images = images.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.long)
@@ -171,11 +171,11 @@ def train_net(net,
 
                 # Evaluation round
 
-                if global_step % add_step == 0:
+                if global_step % division_step == 0:
 
                     val_score = evaluate(net, val_loader, device).item()
                     results['val_scores'].append(val_score)
-                    # scheduler.step(val_score)
+                    scheduler.step(val_score)
                     if val_score > best_val_score + delta:
                         best_val_score = val_score
                         best_weights = net.state_dict()
@@ -185,35 +185,7 @@ def train_net(net,
 
                     logging.info('Validation Dice score: {}'.format(val_score))
                 if cur_patience > patience:
-                    break_cond = True
                     break
-                if add_step > 0 and global_step % add_step == 0 and len(
-                        pool_idxs) > 0:
-                    cur_patience = 0
-
-                    add_ids = cost_funct(net, device, data[pool_idxs, 0])
-                    add_set = TensorDataset(*[
-                        torch.Tensor(input) for input in my_data.make_dataset(
-                            (data[pool_idxs[add_ids],
-                                  0], data[pool_idxs[add_ids], 1]),
-                            img_size=image_size,
-                            offset=offset,
-                        )
-                    ])
-                    newTrainSet = ConcatDataset([train_set, add_set])
-                    train_loader = DataLoader(newTrainSet,
-                                              shuffle=True,
-                                              **loader_args)
-                    init_train_idxs = np.concatenate(
-                        [init_train_idxs, pool_idxs[add_ids]])
-
-                    pool_idxs = np.delete(pool_idxs,
-                                          add_ids)  #remove from pool
-
-            if break_cond:
-                break
-        if break_cond:
-            break
 
     pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
@@ -237,19 +209,14 @@ def get_args():
                         dest='batch_size',
                         metavar='B',
                         type=int,
-                        default=2,
+                        default=32,
                         help='Batch size')
-    parser.add_argument(
-        '--cost_function',
-        dest='cost_function',
-        type=str,
-        default="Test",
-    )
+
     parser.add_argument(
         '--init_train_ratio',
         dest='init_train_ratio',
         type=float,
-        default=.3,
+        default=1.0,
     )
     parser.add_argument('--experiment_name',
                         '-g',
@@ -276,11 +243,15 @@ def get_args():
                         default=64,
                         help='Offset')
     parser.add_argument('--seed', '-t', type=int, default=42, help='Seed')
-
+    parser.add_argument('--load',
+                        '-f',
+                        type=str,
+                        default=False,
+                        help='Load model from a .pth file')
     parser.add_argument('--scale',
                         '-s',
                         type=float,
-                        default=.5,
+                        default=1.0,
                         help='Downscaling factor of the images')
     parser.add_argument(
         '--validation',
@@ -293,7 +264,6 @@ def get_args():
                         action='store_true',
                         default=False,
                         help='Use mixed precision')
-    parser.add_argument('--add_step', type=int, default=1)
     parser.add_argument('--bilinear',
                         action='store_true',
                         default=False,
@@ -329,17 +299,16 @@ if __name__ == '__main__':
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     net = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
-    if args.cost_function == "Random":
-        cost_function = random_cost_function
-    else:
-
-        cost_function = aq_cost_function
 
     logging.info(
         f'Network:\n'
         f'\t{net.n_channels} input channels\n'
         f'\t{net.n_classes} output channels (classes)\n'
         f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
+
+    if args.load:
+        net.load_state_dict(torch.load(args.load, map_location=device))
+        logging.info(f'Model loaded from {args.load}')
 
     net.to(device=device)
     try:
@@ -353,9 +322,7 @@ if __name__ == '__main__':
                   img_scale=args.scale,
                   val_percent=args.val / 100,
                   amp=args.amp,
-                  add_step=args.add_step,
-                  init_train_ratio=args.init_train_ratio,
-                  cost_funct=cost_function)
+                  init_train_ratio=args.init_train_ratio)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')

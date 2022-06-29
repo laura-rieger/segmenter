@@ -130,3 +130,5 @@ dmypy.json
 config.ini
 *.tif
 data/*
+*.pt
+*.pkl

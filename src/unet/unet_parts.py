@@ -1,23 +1,9 @@
 """ Parts of the U-Net model """
-# from https://github.com/milesial/Pytorch-UNet
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-def add_frame(input_tensor, num_pad = 1):
-    output_tensor = F.pad(input_tensor, (num_pad, num_pad, num_pad, num_pad)) 
-    output_tensor[:,:, num_pad:-num_pad, :num_pad] = input_tensor[:,:,:,-num_pad:]
-    output_tensor[:,:, num_pad:-num_pad, -num_pad:] = input_tensor[:,:,:,:num_pad]
-    output_tensor[:,:, :num_pad, num_pad:-num_pad] = input_tensor[:,:,-num_pad:]
-    output_tensor[:,:, -num_pad:, num_pad:-num_pad] = input_tensor[:,:,:num_pad]   
-    
-    output_tensor[:,:, :num_pad, :num_pad] = input_tensor[:,:,-num_pad:,-num_pad:]
-    output_tensor[:,:, :num_pad, -num_pad:] = input_tensor[:,:,-num_pad:,:num_pad]
-    output_tensor[:,:, -num_pad:, :num_pad] = input_tensor[:,:,:num_pad,-num_pad:]
-    output_tensor[:,:, -num_pad:, -num_pad:] = input_tensor[:,:,:num_pad,:num_pad]
-    
 
-    return output_tensor
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -27,17 +13,16 @@ class DoubleConv(nn.Module):
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=0),
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=0),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
-        
-        return self.double_conv(add_frame(x, num_pad=2))
+        return self.double_conv(x)
 
 
 class Down(nn.Module):
@@ -65,9 +50,8 @@ class Up(nn.Module):
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
-            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
-
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -91,25 +75,3 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-    
-
-if __name__ == "__main__":
-#h dim is given by image size and model
-    test_model = DoubleConv(1,1)
-    
-
-    test_input = torch.zeros((            8,
-            1,
-            5,
-            5,))
-    
-    test_input[:,:, -1:] =.25
-    test_input[:,:, :1] =.75
-    test_input[:,:, :,-1:] =1
-    test_input[:,:, :,:1] =.5
-    my_output = test_model(test_input)
-    print(my_output.shape)
-    # print(test_model(test_input).shape)
-    fig, axes = plt.subplots(ncols=2)
-    axes[0].imshow(test_input[0,0].detach().cpu().numpy())
-    axes[1].imshow(my_output[0,0].detach().cpu().numpy())
