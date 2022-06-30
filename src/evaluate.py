@@ -13,15 +13,23 @@ def random_cost_function(net, device, imgs, n_choose=1):
 
 
 def aq_cost_function(net, device, imgs, n_choose=1):
+    logsoftmax = torch.nn.LogSoftmax(dim=0)
     std_arr = np.zeros((len(imgs)))
     net.eval()
     with torch.no_grad():
         for i in range(len(imgs)):
 
             img_t = torch.Tensor(imgs[i][None, None, :]).to(device)
-            output = net.forward(img_t).cpu().detach().numpy()[0]
-            std_arr = np.quantile(output.std(axis=0), .1)
-    return np.argsort(std_arr)[:n_choose]
+
+            output = net.forward(img_t)  #.cpu().detach().numpy()[0]
+            # return output
+            # print(output.shape)
+            # std = np.quantile(output.std(axis=0), .1)  #Std
+
+            std_arr[i] = (logsoftmax(output[0]) *
+                          torch.softmax(output[0], axis=0)).mean().item()
+            # std_arr[i] = output.max(axis=0).mean()  #mean
+    return np.argsort(std_arr)[-n_choose:]
 
 
 def evaluate(net, dataloader, device):

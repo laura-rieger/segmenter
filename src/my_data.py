@@ -35,6 +35,8 @@ def load_dummy_data(data_path):
     for file_name in files:
 
         im = io.imread(oj(data_path, file_name))
+        if im.shape[2] == 3:
+            im = np.swapaxes(im, 0, 2)
         print(im.shape)
         imgs = np.vstack([
             im[:, :1024, :1024], im[:, :1024, 1024:], im[:, 1024:, 1024:],
@@ -51,28 +53,32 @@ def make_dataset(
     img_size=25,
     offset=20,
 ):
-    img_width = imgs[0].shape[1]
+    img_width = imgs.shape[2]
+
     # shape = imgs[0].shape
     # mid_point = int(img_width / 2)
     # xx, yy = np.mgrid[:img_width, :img_width]
 
     # convert segmentation to one two three
-    y_all = np.zeros_like(imgs[1])
-    y_all[np.where(imgs[1] == phase_1)] = 1
+    y_all = np.zeros_like(imgs[:, 1])
+    y_all[np.where(imgs[:, 1] == phase_1)] = 1
 
-    y_all[np.where(imgs[1] == phase_2)] = 2
+    y_all[np.where(imgs[:, 1] == phase_2)] = 2
 
     # assume that we have two tif files
     x_list = []
     y_list = []
-    for idx in range(len(imgs[0])):
+    print(imgs.shape)
+    for idx in range(len(imgs)):
+        # for idx in range(1):
 
         cur_x, cur_y = 0, 0
-        while (cur_x < img_width - img_size):
+        while (cur_x <= img_width - img_size):
             cur_y = 0
-            while (cur_y < img_width - img_size):
+            while (cur_y <= img_width - img_size):
+
                 # here is where you need to
-                x_list.append(imgs[0][idx][cur_x:cur_x + img_size,
+                x_list.append(imgs[idx, 0][cur_x:cur_x + img_size,
                                            cur_y:cur_y + img_size])
                 y_list.append(y_all[idx][cur_x:cur_x + img_size,
                                          cur_y:cur_y + img_size])

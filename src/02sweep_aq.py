@@ -7,11 +7,11 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "Aquire",
+        "Aq7",
     ],
-    "seed": [x for x in range(4)],
-    "cost_function": ["Std", "Random"],
-    "init_train_ratio": [.3],
+    "seed": [x for x in range(5)],
+    "cost_function": ["Mean", "Random"],
+    "init_train_ratio": [.1],
     "batch-size": [128],
     "scale": [
         .5,
@@ -40,7 +40,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-00:45:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

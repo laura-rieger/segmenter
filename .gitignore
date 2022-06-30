@@ -132,3 +132,7 @@ config.ini
 data/*
 *.pt
 *.pkl
+*.wandb
+*.yaml
+*.json
+*.txt

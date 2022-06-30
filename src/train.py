@@ -21,28 +21,15 @@ from argparse import ArgumentParser
 from utils.dice_score import dice_loss
 from evaluate import evaluate, aq_cost_function, random_cost_function
 from unet import UNet
-#TODO Seed
+import wandb
 
-dir_img = Path('./data/imgs/')
-dir_mask = Path('./data/masks/')
-dir_checkpoint = Path('./checkpoints/')
+wandb.init(project="VoxelSegment")
 
 results = {}
 np.random.seed()
 file_name = "".join([str(np.random.choice(10)) for x in range(10)])
 results["file_name"] = file_name
-
-
-def random_aqcuisition():
-    pass
-
-
-def active_aqcuisition():
-    pass
-
-
-def oracle_aqcuisition():
-    pass
+wandb.config['file_name'] = file_name
 
 
 def train_net(net,
@@ -57,13 +44,14 @@ def train_net(net,
               offset=64,
               amp: bool = False,
               init_train_ratio=1.0,
+              final_ratio=.75,
               add_step=0,
               cost_funct=random_cost_function):
     # 1. Create dataset
     results['val_scores'] = []
     # val_scores = []
     data = my_data.load_dummy_data(config['DATASET']['data_path'])
-    data = data[:-4]  # just don't touch the last four
+    # data = data[:-4]  # just don't touch the last four
 
     all_idxs = np.arange(len(data))
     np.random.seed(0)
@@ -79,14 +67,14 @@ def train_net(net,
 
     train_set = TensorDataset(*[
         torch.Tensor(input) for input in my_data.make_dataset(
-            (data[init_train_idxs, 0], data[init_train_idxs, 1]),
+            data[init_train_idxs],
             img_size=image_size,
             offset=offset,
         )
     ])
     val_set = TensorDataset(*[
         torch.Tensor(input) for input in my_data.make_dataset(
-            (data[val_idxs, 0], data[val_idxs, 1]),
+            data[val_idxs],
             img_size=image_size,
             offset=offset,
         )
@@ -95,6 +83,8 @@ def train_net(net,
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=1, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+
+    old_num_train = len(train_loader.dataset)
     val_loader = DataLoader(val_set,
                             shuffle=False,
                             drop_last=True,
@@ -127,9 +117,9 @@ def train_net(net,
     # 5. Begin training
     best_val_score = 0
     delta = .001
-    best_weights = None
     patience = 5
     cur_patience = 0
+    best_weights = None
 
     break_cond = False
 
@@ -162,14 +152,8 @@ def train_net(net,
                 pbar.update(images.shape[0])
                 global_step += 1
                 epoch_loss += loss.item()
-                # experiment.log({
-                #     'train loss': loss.item(),
-                #     'step': global_step,
-                #     'epoch': epoch
-                # })
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
 
-                # Evaluation round
+                pbar.set_postfix(**{'loss (batch)': loss.item()})
 
                 if global_step % add_step == 0:
 
@@ -182,33 +166,45 @@ def train_net(net,
                         cur_patience = 0
                     else:
                         cur_patience += 1
+                    if add_step > 0 and len(pool_idxs) > 0 and len(
+                            pool_idxs) >= (len(init_train_idxs) +
+                                           len(pool_idxs) * final_ratio):
+                        old_num_train = len(train_loader.dataset)
+                        cur_patience = 0
 
-                    logging.info('Validation Dice score: {}'.format(val_score))
+                        add_ids = cost_funct(net, device, data[pool_idxs, 0])
+                        add_set = TensorDataset(*[
+                            torch.Tensor(input)
+                            for input in my_data.make_dataset(
+                                data[pool_idxs[add_ids]],
+                                img_size=image_size,
+                                offset=offset,
+                            )
+                        ])
+                        newTrainSet = ConcatDataset(
+                            [train_loader.dataset, add_set])
+                        train_loader = DataLoader(newTrainSet,
+                                                  shuffle=True,
+                                                  **loader_args)
+                        init_train_idxs = np.concatenate(
+                            [init_train_idxs, pool_idxs[add_ids]])
+
+                        pool_idxs = np.delete(pool_idxs,
+                                              add_ids)  #remove from pool
+                    wandb.log({
+                        'dice_score':
+                        val_score,
+                        'num_train':
+                        old_num_train,
+                        'train_loss':
+                        epoch_loss / (add_step * batch_size)
+                    })
+
+                    epoch_loss = 0
+
                 if cur_patience > patience:
                     break_cond = True
                     break
-                if add_step > 0 and global_step % add_step == 0 and len(
-                        pool_idxs) > 0:
-                    cur_patience = 0
-
-                    add_ids = cost_funct(net, device, data[pool_idxs, 0])
-                    add_set = TensorDataset(*[
-                        torch.Tensor(input) for input in my_data.make_dataset(
-                            (data[pool_idxs[add_ids],
-                                  0], data[pool_idxs[add_ids], 1]),
-                            img_size=image_size,
-                            offset=offset,
-                        )
-                    ])
-                    newTrainSet = ConcatDataset([train_set, add_set])
-                    train_loader = DataLoader(newTrainSet,
-                                              shuffle=True,
-                                              **loader_args)
-                    init_train_idxs = np.concatenate(
-                        [init_train_idxs, pool_idxs[add_ids]])
-
-                    pool_idxs = np.delete(pool_idxs,
-                                          add_ids)  #remove from pool
 
             if break_cond:
                 break
@@ -218,9 +214,7 @@ def train_net(net,
     pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
     torch.save(best_weights, oj(save_path, file_name + ".pt"))
-    Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-
-    logging.info(f'Checkpoint {epoch} saved!')
+    # wandb.alert(title="Run is done", text="Run is done")
 
 
 def get_args():
@@ -312,6 +306,8 @@ if __name__ == '__main__':
     for arg in vars(args):
         if arg != "save_path":
             results[str(arg)] = getattr(args, arg)
+            wandb.config[str(arg)] = getattr(args, arg)
+
     config = configparser.ConfigParser()
     config.read("../config.ini")
 
@@ -342,21 +338,17 @@ if __name__ == '__main__':
         f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
 
     net.to(device=device)
-    try:
-        train_net(net=net,
-                  epochs=args.epochs,
-                  batch_size=args.batch_size,
-                  learning_rate=args.lr,
-                  image_size=args.image_size,
-                  offset=args.offset,
-                  device=device,
-                  img_scale=args.scale,
-                  val_percent=args.val / 100,
-                  amp=args.amp,
-                  add_step=args.add_step,
-                  init_train_ratio=args.init_train_ratio,
-                  cost_funct=cost_function)
-    except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
-        logging.info('Saved interrupt')
-        raise
+
+    train_net(net=net,
+              epochs=args.epochs,
+              batch_size=args.batch_size,
+              learning_rate=args.lr,
+              image_size=args.image_size,
+              offset=args.offset,
+              device=device,
+              img_scale=args.scale,
+              val_percent=args.val / 100,
+              amp=args.amp,
+              add_step=args.add_step,
+              init_train_ratio=args.init_train_ratio,
+              cost_funct=cost_function)

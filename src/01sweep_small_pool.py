@@ -7,10 +7,13 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "Pool",
+        "Aq5",
     ],
-    "seed": [x for x in range(1)],
-    "init_train_ratio": [1., .3],
+    "seed": [x for x in range(5)],
+    "cost_function": ["Pool"],
+    "init_train_ratio": [
+        1.,
+    ],
     "batch-size": [128],
     "scale": [
         .5,
@@ -20,7 +23,7 @@ params_to_vary = {
         128,
     ],
     "add_step": [
-        0,
+        10,
     ],
     "offset": [
         64,
@@ -35,11 +38,11 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL,END",
+        mail_type="FAIL",
         partition="sm3090",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-00:45:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
