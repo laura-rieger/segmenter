@@ -18,12 +18,22 @@ circle_shape = ((xx - mid_point)**2 +
                 (yy - mid_point)**2) < (np.square(radius))
 
 
+def load_full(data_path):
+    files = os.listdir(data_path)
+
+    im = io.imread(oj(data_path, files[0]))
+    return im[:,0]
+    return np.asarray(im)
+
+
 def load_data(data_path):
     files = os.listdir(data_path)
     my_data = []
     for file_name in files:
 
         im = io.imread(oj(data_path, file_name))
+        # print(im.shape)
+
         my_data.append(np.asarray(im))
     all_arr = np.asarray(my_data)
     return np.swapaxes(all_arr, 0, 1)
