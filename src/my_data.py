@@ -82,7 +82,7 @@ def load_layer_data(data_path):
                     im[:, :, :1024, :1024], im[:, :, :1024, 1024:],
                     im[:, :, 1024:, 1024:], im[:, :, 1024:, :1024]
                 ])
-                imgs = imgs[:, 2:3]
+                imgs = imgs
 
         my_data.append(np.asarray(imgs))
     return my_data

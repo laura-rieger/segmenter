@@ -5,7 +5,7 @@ import os
 from re import A
 import sys
 from pathlib import Path
-
+import platform
 import my_data
 from os.path import join as oj
 import torch
@@ -24,6 +24,8 @@ from evaluate import evaluate, aq_cost_function, random_cost_function
 from unet import UNet
 import wandb
 
+is_windows = platform.system() == 'Windows'
+num_workers = 0 if is_windows else 4
 wandb.init(project="VoxelSegment")
 
 results = {}
@@ -51,7 +53,7 @@ def train_net(net,
     # 1. Create dataset
     results['val_scores'] = []
     # val_scores = []
-    x, y = my_data.load_small_res_data(config['DATASET']['data_path'])
+    x, y = my_data.load_layer_data(config['DATASET']['data_layer_path'])
     # data = data[:-4]  # just don't touch the last four
 
     all_idxs = np.arange(len(x))
@@ -84,7 +86,9 @@ def train_net(net,
     ])
     num_train = len(train_set)
     # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=1, pin_memory=True)
+    loader_args = dict(batch_size=batch_size,
+                       num_workers=num_workers,
+                       pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
 
     old_num_train = len(train_loader.dataset)
@@ -137,6 +141,7 @@ def train_net(net,
             ) in train_loader:
 
                 images = images.to(device=device, dtype=torch.float32)
+
                 true_masks = true_masks.to(device=device, dtype=torch.long)
 
                 with torch.cuda.amp.autocast(enabled=amp):
@@ -327,7 +332,7 @@ if __name__ == '__main__':
     # n_classes is the number of probabilities you want to get per pixel
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    net = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
+    net = UNet(n_channels=5, n_classes=args.classes, bilinear=args.bilinear)
     if args.cost_function == "Random":
         cost_function = random_cost_function
     else:
