@@ -13,6 +13,9 @@ def random_cost_function(net, device, imgs, n_choose=1):
 
 
 def aq_cost_function(net, device, imgs, n_choose=1):
+    print("Fix aq cost")
+    import sys
+    sys.exit()
     logsoftmax = torch.nn.LogSoftmax(dim=0)
     std_arr = np.zeros((len(imgs)))
     net.eval()

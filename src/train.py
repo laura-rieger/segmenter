@@ -5,6 +5,7 @@ import os
 from re import A
 import sys
 from pathlib import Path
+
 import my_data
 from os.path import join as oj
 import torch
@@ -50,14 +51,14 @@ def train_net(net,
     # 1. Create dataset
     results['val_scores'] = []
     # val_scores = []
-    data = my_data.load_dummy_data(config['DATASET']['data_path'])
+    x, y = my_data.load_small_res_data(config['DATASET']['data_path'])
     # data = data[:-4]  # just don't touch the last four
 
-    all_idxs = np.arange(len(data))
+    all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
-    n_val = np.maximum(int(len(data) * val_percent), 1)
-    n_train = len(data) - n_val
+    n_val = np.maximum(int(len(x) * val_percent), 1)
+    n_train = len(x) - n_val
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
     init_train_idxs = all_train_idxs[:np.
@@ -67,14 +68,16 @@ def train_net(net,
 
     train_set = TensorDataset(*[
         torch.Tensor(input) for input in my_data.make_dataset(
-            data[init_train_idxs],
+            x[init_train_idxs],
+            y[init_train_idxs],
             img_size=image_size,
             offset=offset,
         )
     ])
     val_set = TensorDataset(*[
         torch.Tensor(input) for input in my_data.make_dataset(
-            data[val_idxs],
+            x[val_idxs],
+            y[val_idxs],
             img_size=image_size,
             offset=offset,
         )
