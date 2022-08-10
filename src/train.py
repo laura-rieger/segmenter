@@ -4,6 +4,7 @@ import logging
 import os
 from re import A
 import sys
+import torchvision.transforms.functional as TF
 from pathlib import Path
 import platform
 import my_data
@@ -139,6 +140,12 @@ def train_net(net,
                     images,
                     true_masks,
             ) in train_loader:
+                if np.random.uniform() > 5:
+                    images = torch.flip(images, 2)
+                    true_masks = torch.flip(true_masks, 1)
+                if np.random.uniform() > 5:
+                    images = torch.flip(images, 3)
+                    true_masks = torch.flip(true_masks, 2)
 
                 images = images.to(device=device, dtype=torch.float32)
 
@@ -219,9 +226,9 @@ def train_net(net,
         if break_cond:
             break
 
-    pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
+    # pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
-    torch.save(best_weights, oj(save_path, file_name + ".pt"))
+    # torch.save(best_weights, oj(save_path, file_name + ".pt"))
     # wandb.alert(title="Run is done", text="Run is done")
 
 

@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "LayerTest2",
+        "Flip",
     ],
     "seed": [x for x in range(5)],
     "cost_function": [
