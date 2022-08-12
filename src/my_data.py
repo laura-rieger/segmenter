@@ -96,10 +96,6 @@ def make_dataset(
 ):
     img_width = x.shape[2]
 
-    # shape = imgs[0].shape
-    # mid_point = int(img_width / 2)
-    # xx, yy = np.mgrid[:img_width, :img_width]
-
     # convert segmentation to one two three
     y_all = np.zeros_like(y)
     y_all[np.where(y == phase_1)] = 1

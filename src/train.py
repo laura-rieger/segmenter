@@ -27,7 +27,7 @@ import wandb
 
 is_windows = platform.system() == 'Windows'
 num_workers = 0 if is_windows else 4
-wandb.init(project="VoxelSegment")
+wandb.init(project="VoxelSegmentWorking")
 
 results = {}
 np.random.seed()
@@ -55,7 +55,7 @@ def train_net(net,
     results['val_scores'] = []
     # val_scores = []
     x, y = my_data.load_layer_data(config['DATASET']['data_layer_path'])
-    # data = data[:-4]  # just don't touch the last four
+    x, y = x[:-4], y[:-4]  # just don't touch the last four
 
     all_idxs = np.arange(len(x))
     np.random.seed(0)
@@ -113,18 +113,18 @@ def train_net(net,
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(net.parameters(),
                               lr=learning_rate,
-                              weight_decay=1e-8,
-                              momentum=0.9)
-    # optimizer = optim.Adam(net.parameters(), )
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer, 'max', patience=2)  # goal: maximize Dice score
+                              weight_decay=0,
+                              momentum=0.)
+    optimizer = optim.Adamax(net.parameters(), )
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 'max', patience=2)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss()
     global_step = 0
 
     # 5. Begin training
     best_val_score = 0
-    delta = .001
+    delta = .0001
     patience = 5
     cur_patience = 0
     best_weights = None
@@ -140,12 +140,20 @@ def train_net(net,
                     images,
                     true_masks,
             ) in train_loader:
-                if np.random.uniform() > 5:
-                    images = torch.flip(images, 2)
-                    true_masks = torch.flip(true_masks, 1)
-                if np.random.uniform() > 5:
-                    images = torch.flip(images, 3)
-                    true_masks = torch.flip(true_masks, 2)
+                if np.random.uniform() > .5:
+                    images = torch.flip(images, [
+                        2,
+                    ])
+                    true_masks = torch.flip(true_masks, [
+                        1,
+                    ])
+                if np.random.uniform() > .5:
+                    images = torch.flip(images, [
+                        3,
+                    ])
+                    true_masks = torch.flip(true_masks, [
+                        2,
+                    ])
 
                 images = images.to(device=device, dtype=torch.float32)
 
@@ -153,14 +161,15 @@ def train_net(net,
 
                 with torch.cuda.amp.autocast(enabled=amp):
                     masks_pred = net(images)
-                    loss = criterion(masks_pred, true_masks) + dice_loss(
-                        F.softmax(masks_pred, dim=1).float(),
-                        F.one_hot(true_masks, net.n_classes).permute(
-                            0, 3, 1, 2).float(),
-                        multiclass=True)
+                    loss = criterion(masks_pred, true_masks)
+                    loss_dice = dice_loss(F.softmax(masks_pred, dim=1).float(),
+                                          F.one_hot(true_masks,
+                                                    net.n_classes).permute(
+                                                        0, 3, 1, 2).float(),
+                                          multiclass=True)
 
                 optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss).backward()
+                grad_scaler.scale(loss + loss_dice).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
 
@@ -174,7 +183,7 @@ def train_net(net,
 
                     val_score = evaluate(net, val_loader, device).item()
                     results['val_scores'].append(val_score)
-                    # scheduler.step(val_score)
+                    scheduler.step(val_score)
                     if val_score > best_val_score + delta:
                         best_val_score = val_score
                         best_weights = net.state_dict()
@@ -226,9 +235,9 @@ def train_net(net,
         if break_cond:
             break
 
-    # pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
+    pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
-    # torch.save(best_weights, oj(save_path, file_name + ".pt"))
+    torch.save(best_weights, oj(save_path, file_name + ".pt"))
     # wandb.alert(title="Run is done", text="Run is done")
 
 
@@ -267,7 +276,7 @@ def get_args():
                         type=str,
                         default="",
                         help='Name')
-    parser.add_argument('--learning-rate',
+    parser.add_argument('--learningrate',
                         '-l',
                         metavar='LR',
                         type=float,

@@ -7,8 +7,9 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "Flip",
+        "AdamaxSchedCheckBraaa",
     ],
+    "learningrate": [.01],
     "seed": [x for x in range(5)],
     "cost_function": [
         "Mean",
@@ -44,7 +45,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:45:00",
+        time="0-01:40:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
