@@ -22,9 +22,6 @@ def aq_cost_function(net, device, imgs, n_choose=1):
             img_t = torch.Tensor(imgs[i][None, None, :]).to(device)
 
             output = net.forward(img_t)  #.cpu().detach().numpy()[0]
-            # return output
-            # print(output.shape)
-            # std = np.quantile(output.std(axis=0), .1)  #Std
 
             std_arr[i] = (logsoftmax(output[0]) *
                           torch.softmax(output[0], axis=0)).mean().item()

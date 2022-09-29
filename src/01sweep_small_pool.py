@@ -1,5 +1,6 @@
 import itertools
 import os
+import subprocess
 
 from simple_slurm import Slurm
 import platform
@@ -7,16 +8,20 @@ import platform
 is_windows = platform.system() == 'Windows'
 params_to_vary = {
     "experiment_name": [
-        "Aq5",
+        "BaselineSmallPool2",
     ],
     "seed": [x for x in range(5)],
     "cost_function": ["Pool"],
-    "init_train_ratio": [
-        1.,
+    "init_train_ratio": [.2, .1],
+    "final_train_ratio": [
+        -1,
     ],
     "batch-size": [128],
     "scale": [
         .5,
+    ],
+    'dataset': [
+        'lno',
     ],
     "epochs": [3000],
     "image-size": [
@@ -54,8 +59,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        print(cur_function)
-        # subprocess.call(cur_function, shell=True)
+        # print(cur_function)
+        subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)

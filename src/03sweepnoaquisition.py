@@ -4,32 +4,33 @@ import subprocess
 from simple_slurm import Slurm
 import platform
 
-is_windows = platform.system() == 'Windows'
+is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "Acquisition",
+        "Baseline",
     ],
+    "learningrate": [0.01],
     "seed": [x for x in range(5)],
-    "cost_function": ["Mean", "Random"],
+    "cost_function": [
+        "Mean",
+    ],
     "init_train_ratio": [
-        .1,
+        1,
     ],
     "final_train_ratio": [
-        .2,
+        -1,
     ],
+    "dataset": ["lno", "graphite"],
     "batch-size": [128],
     "scale": [
-        .5,
-    ],
-    'dataset': [
-        'lno',
+        0.5,
     ],
     "epochs": [3000],
     "image-size": [
         128,
     ],
     "add_step": [
-        5,
+        20,
     ],
     "offset": [
         64,
@@ -48,7 +49,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:45:00",
+        time="0-01:40:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

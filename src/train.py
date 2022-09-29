@@ -32,7 +32,7 @@ results["file_name"] = file_name
 wandb.config['file_name'] = file_name
 
 
-def train_net(net,
+def train_net(args,
               device,
               epochs: int = 5,
               batch_size: int = 1,
@@ -44,14 +44,28 @@ def train_net(net,
               offset=64,
               amp: bool = False,
               init_train_ratio=1.0,
-              final_ratio=.75,
+              final_train_ratio=.75,
               add_step=0,
               cost_funct=random_cost_function):
+
+    if args.cost_function == "Random":
+        cost_function = random_cost_function
+    else:
+
+        cost_function = aq_cost_function
+
     # 1. Create dataset
     results['val_scores'] = []
     # val_scores = []
-    data = my_data.load_dummy_data(config['DATASET']['data_path'])
-    # data = data[:-4]  # just don't touch the last four
+    x, y = my_data.load_layer_data(
+        oj(config['DATASET']['data_layer_path'], args.dataset))
+    num_classes = len(np.unique(y))
+    wandb.config['num_classes'] = num_classes
+    results['num_classes'] = num_classes
+    x, y = x[:-4], y[:-4]  # just don't touch the last four
+    x = x.astype(np.float64)
+    x -= x.mean()
+    x /= x.std()
 
     all_idxs = np.arange(len(data))
     np.random.seed(0)
@@ -90,6 +104,16 @@ def train_net(net,
                             drop_last=True,
                             **loader_args)
 
+    logging.info("Loaded dataset")
+
+    torch.manual_seed(args.seed)
+    results['num_channels'] = x.shape[1]
+    net = UNet(n_channels=results['num_channels'],
+               n_classes=num_classes,
+               bilinear=args.bilinear).to(device)
+
+    net.to(device=device)
+
     logging.info(f'''Starting training:
         Epochs:          {epochs}
         Batch size:      {batch_size}
@@ -101,7 +125,6 @@ def train_net(net,
         Images scaling:  {img_scale}
         Mixed Precision: {amp}
     ''')
-
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(net.parameters(),
                               lr=learning_rate,
@@ -168,15 +191,16 @@ def train_net(net,
                         cur_patience += 1
                     if add_step > 0 and len(pool_idxs) > 0 and len(
                             pool_idxs) >= (len(init_train_idxs) +
-                                           len(pool_idxs) * final_ratio):
+                                           len(pool_idxs) * final_train_ratio):
                         old_num_train = len(train_loader.dataset)
                         cur_patience = 0
 
-                        add_ids = cost_funct(net, device, data[pool_idxs, 0])
+                        add_ids = cost_funct(net, device, x[pool_idxs])
                         add_set = TensorDataset(*[
                             torch.Tensor(input)
                             for input in my_data.make_dataset(
-                                data[pool_idxs[add_ids]],
+                                x[pool_idxs[add_ids]],
+                                y[pool_idxs[add_ids]],
                                 img_size=image_size,
                                 offset=offset,
                             )
@@ -243,7 +267,13 @@ def get_args():
         '--init_train_ratio',
         dest='init_train_ratio',
         type=float,
-        default=.3,
+        default=.2,
+    )
+    parser.add_argument(
+        '--final_train_ratio',
+        dest='final_train_ratio',
+        type=float,
+        default=-1,
     )
     parser.add_argument('--experiment_name',
                         '-g',
@@ -252,7 +282,14 @@ def get_args():
                         type=str,
                         default="",
                         help='Name')
-    parser.add_argument('--learning-rate',
+    parser.add_argument('--dataset',
+                        '-ds',
+                        dest='dataset',
+                        metavar='ds',
+                        type=str,
+                        default="lno",
+                        help='Dataset folder')
+    parser.add_argument('--learningrate',
                         '-l',
                         metavar='LR',
                         type=float,
@@ -318,37 +355,22 @@ if __name__ == '__main__':
                         format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
+    # if no ratio is given, do not aquire new data
+    if args.final_train_ratio == -1:
+        args.final_train_ratio = args.init_train_ratio
 
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_classes is the number of probabilities you want to get per pixel
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    net = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
-    if args.cost_function == "Random":
-        cost_function = random_cost_function
-    else:
-
-        cost_function = aq_cost_function
-
-    logging.info(
-        f'Network:\n'
-        f'\t{net.n_channels} input channels\n'
-        f'\t{net.n_classes} output channels (classes)\n'
-        f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
-
-    net.to(device=device)
-
-    train_net(net=net,
-              epochs=args.epochs,
-              batch_size=args.batch_size,
-              learning_rate=args.lr,
-              image_size=args.image_size,
-              offset=args.offset,
-              device=device,
-              img_scale=args.scale,
-              val_percent=args.val / 100,
-              amp=args.amp,
-              add_step=args.add_step,
-              init_train_ratio=args.init_train_ratio,
-              cost_funct=cost_function)
+    train_net(
+        args,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        image_size=args.image_size,
+        offset=args.offset,
+        device=device,
+        img_scale=args.scale,
+        val_percent=args.val / 100,
+        amp=args.amp,
+        add_step=args.add_step,
+        init_train_ratio=args.init_train_ratio,
+        final_train_ratio=args.final_train_ratio,
+    )
