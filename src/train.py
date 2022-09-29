@@ -54,13 +54,12 @@ def train_net(
     final_ratio=0.75,
     add_step=0,
     cost_funct=random_cost_function,
-    
-    dataset,
+    dataset=None,
 ):
     # 1. Create dataset
     results["val_scores"] = []
     # val_scores = []
-    x, y = my_data.load_layer_data(oj(config["DATASET"]["data_layer_path"],dataset))
+    x, y = my_data.load_layer_data(oj(config["DATASET"]["data_path"], dataset))
     x, y = x[:-4], y[:-4]  # just don't touch the last four
 
     all_idxs = np.arange(len(x))
@@ -298,7 +297,7 @@ def get_args():
         "--foldername",
         dest="foldername",
         type=str,
-        default='lno',
+        default="lno",
     )
     parser.add_argument(
         "--experiment_name",
@@ -375,7 +374,7 @@ if __name__ == "__main__":
     # n_classes is the number of probabilities you want to get per pixel
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    net = UNet(n_channels=5, n_classes=args.classes, bilinear=args.bilinear)
+    net = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
     if args.cost_function == "Random":
         cost_function = random_cost_function
     else:
@@ -405,5 +404,5 @@ if __name__ == "__main__":
         add_step=args.add_step,
         init_train_ratio=args.init_train_ratio,
         cost_funct=cost_function,
-        dataset = args.foldername
+        dataset=args.foldername,
     )
