@@ -2,11 +2,16 @@ import torch
 from torch import Tensor
 
 
-def dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon=1e-6):
+def dice_coeff(
+    input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon=1e-6
+):
     # Average of Dice coefficient for all batches, or for a single mask
-    assert input.size() == target.size()
+    # assert input.size() == target.size()
+
     if input.dim() == 2 and reduce_batch_first:
-        raise ValueError(f'Dice: asked to reduce batch but got tensor without batch dimension (shape {input.shape})')
+        raise ValueError(
+            f"Dice: asked to reduce batch but got tensor without batch dimension (shape {input.shape})"
+        )
 
     if input.dim() == 2 or reduce_batch_first:
         inter = torch.dot(input.reshape(-1), target.reshape(-1))
@@ -23,18 +28,29 @@ def dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, 
         return dice / input.shape[0]
 
 
-def multiclass_dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon=1e-6):
+def multiclass_dice_coeff(
+    input: Tensor,
+    target: Tensor,
+    num_classes: int,
+    reduce_batch_first: bool = False,
+    epsilon=1e-6,
+):
     # Average of Dice coefficient for all classes
-    assert input.size() == target.size()
+    # assert input.size() == target.size()
     dice = 0
-    for channel in range(input.shape[1]):
-        dice += dice_coeff(input[:, channel, ...], target[:, channel, ...], reduce_batch_first, epsilon)
+    for channel in range(num_classes):
+        dice += dice_coeff(
+            input[:, channel, ...],
+            (target == channel).float(),
+            reduce_batch_first,
+            epsilon,
+        )
 
     return dice / input.shape[1]
 
 
-def dice_loss(input: Tensor, target: Tensor, multiclass: bool = False):
+def dice_loss(input: Tensor, target: Tensor, num_classes, multiclass: bool = False):
     # Dice loss (objective to minimize) between 0 and 1
-    assert input.size() == target.size()
+    # assert input.size() == target.size()
     fn = multiclass_dice_coeff if multiclass else dice_coeff
-    return 1 - fn(input, target, reduce_batch_first=True)
+    return 1 - fn(input, target, num_classes, reduce_batch_first=True)

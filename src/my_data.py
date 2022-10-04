@@ -25,53 +25,53 @@ def load_data(data_path):
     return np.swapaxes(all_arr, 0, 1)
 
 
-def load_dummy_data(data_path):
-    files = os.listdir(data_path)
-    my_data = []
-    for file_name in files:
+# def load_dummy_data(data_path):
+#     files = os.listdir(data_path)
+#     my_data = []
+#     for file_name in files:
 
-        im = io.imread(oj(data_path, file_name))
-        if im.shape[2] == 3:
-            im = np.swapaxes(im, 0, 2)
-        print(im.shape)
-        imgs = np.vstack(
-            [
-                im[:, :1024, :1024],
-                im[:, :1024, 1024:],
-                im[:, 1024:, 1024:],
-                im[:, 1024:, :1024],
-            ]
-        )
+#         im = io.imread(oj(data_path, file_name))
+#         if im.shape[2] == 3:
+#             im = np.swapaxes(im, 0, 2)
+#         print(im.shape)
+#         imgs = np.vstack(
+#             [
+#                 im[:, :1024, :1024],
+#                 im[:, :1024, 1024:],
+#                 im[:, 1024:, 1024:],
+#                 im[:, 1024:, :1024],
+#             ]
+#         )
 
-        my_data.append(np.asarray(imgs))
-    all_arr = np.asarray(my_data)
-    return all_arr[0][:, None], all_arr[1]
+#         my_data.append(np.asarray(imgs))
+#     all_arr = np.asarray(my_data)
+#     return all_arr[0][:, None], all_arr[1]
 
 
-def load_second(data_path):
-    files = os.listdir(data_path)
-    my_data = []
-    for file_name in files:
+# def load_second(data_path):
+#     files = os.listdir(data_path)
+#     my_data = []
+#     for file_name in files:
 
-        with open(oj(data_path, files[0]), "rb") as f:
+#         with open(oj(data_path, files[0]), "rb") as f:
 
-            im = io.imread(oj(data_path, file_name))
+#             im = io.imread(oj(data_path, file_name))
 
-            imgs = np.vstack(
-                [
-                    im[None, :1024, :1024],
-                    im[None, :1024, 1024:],
-                    im[None, 1024:, 1024:],
-                    im[None, 1024:, :1024],
-                ]
-            )
-        my_imgs = np.asarray(imgs)
+#             imgs = np.vstack(
+#                 [
+#                     im[None, :1024, :1024],
+#                     im[None, :1024, 1024:],
+#                     im[None, 1024:, 1024:],
+#                     im[None, 1024:, :1024],
+#                 ]
+#             )
+#         my_imgs = np.asarray(imgs)
 
-        my_data.append(my_imgs)
-    print(my_data[0].shape)
+#         my_data.append(my_imgs)
+#     print(my_data[0].shape)
 
-    my_data[0] = make_classes(my_data[0])
-    return my_data
+#     my_data[0], num_classes = make_classes(my_data[0])
+#     return my_data, num_classes
 
 
 def load_layer_data(data_path):
@@ -96,23 +96,26 @@ def load_layer_data(data_path):
         my_data.append(my_imgs)
 
     # assume that first is x, second y
+    my_data[0] = my_data[0].astype(np.float)
+    print(my_data[0].dtype)
+    my_data[0] /= my_data[0].max()
     if len(my_data[0].shape) < 4:
 
         my_data[0] = my_data[0][:, None]  # unet expects 4d
-    my_data[1] = make_classes(my_data[1])
-    return my_data
+    my_data[1], num_classes = make_classes(my_data[1])
+    return my_data[0], my_data[1], num_classes
 
 
 def make_classes(y):
     y_all = np.zeros_like(y)
     class_vals = np.unique(y)
-
+    class_vals = class_vals[class_vals != 0]  # unmarked pixels do not count in classes
     num_classes = len(class_vals)
-    # print(num_classes)
+    y_all[y == 0] = 255
     my_channels = np.argsort(class_vals)
     for i in range(num_classes):
         y_all[np.where(y == class_vals[my_channels[i]])] = i
-    return y_all
+    return y_all, num_classes
 
 
 def make_dataset(

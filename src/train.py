@@ -2,30 +2,29 @@ import argparse
 import configparser
 import logging
 import os
-from re import A
-import sys
-import torchvision.transforms.functional as TF
-from pathlib import Path
+
+
 import platform
 import my_data
 from os.path import join as oj
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 # import wandb
 from torch import optim
 import pickle as pkl
-from torch.utils.data import DataLoader, random_split, TensorDataset, ConcatDataset
+from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from tqdm import tqdm
 import numpy as np
+from torch.nn import functional as F
 
 # from torch.utils.data import DataLoader, TensorDataset
-from argparse import ArgumentParser
+
 from utils.dice_score import dice_loss
 from evaluate import evaluate, aq_cost_function, random_cost_function
 from unet import UNet
 import wandb
+
 
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
@@ -39,7 +38,6 @@ wandb.config["file_name"] = file_name
 
 
 def train_net(
-    net,
     device,
     epochs: int = 5,
     batch_size: int = 1,
@@ -59,8 +57,12 @@ def train_net(
     # 1. Create dataset
     results["val_scores"] = []
     # val_scores = []
-    x, y = my_data.load_layer_data(oj(config["DATASET"]["data_path"], dataset))
+    x, y, num_classes = my_data.load_layer_data(
+        oj(config["DATASET"]["data_path"], dataset)
+    )
+    results["num_classes"] = num_classes
     x, y = x[:-4], y[:-4]  # just don't touch the last four
+    x
 
     all_idxs = np.arange(len(x))
     np.random.seed(0)
@@ -102,20 +104,9 @@ def train_net(
     old_num_train = len(train_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
-    logging.info(
-        f"""Starting training:
-        Epochs:          {epochs}
-        Batch size:      {batch_size}
-        Learning rate:   {learning_rate}
-        Training size:   {num_train}
-        Validation size: {n_val}
-        Checkpoints:     {save_checkpoint}
-        Device:          {device.type}
-        Images scaling:  {img_scale}
-        Mixed Precision: {amp}
-    """
-    )
-
+    net = UNet(
+        n_channels=1, n_classes=results["num_classes"], bilinear=args.bilinear
+    ).to(device=device)
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(
         net.parameters(), lr=learning_rate, weight_decay=0, momentum=0.0
@@ -127,7 +118,7 @@ def train_net(
         optimizer, "max", patience=2
     )  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=255)
     global_step = 0
 
     # 5. Begin training
@@ -180,19 +171,21 @@ def train_net(
 
                 with torch.cuda.amp.autocast(enabled=amp):
                     masks_pred = net(images)
-                    loss = criterion(masks_pred, true_masks)
-                    loss_dice = dice_loss(
-                        F.softmax(masks_pred, dim=1).float(),
-                        F.one_hot(true_masks, net.n_classes)
-                        .permute(0, 3, 1, 2)
-                        .float(),
-                        multiclass=True,
-                    )
+                    if torch.any(true_masks != 255):
+                        loss = criterion(masks_pred, true_masks)
+                        # test_out = F.softmax(masks_pred, dim=1).float()
 
-                optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss + loss_dice).backward()
-                grad_scaler.step(optimizer)
-                grad_scaler.update()
+                        loss_dice = dice_loss(
+                            F.softmax(masks_pred, dim=1).float(),
+                            true_masks,
+                            num_classes,
+                            multiclass=True,
+                        )
+
+                        optimizer.zero_grad(set_to_none=True)
+                        grad_scaler.scale(loss + loss_dice).backward()
+                        grad_scaler.step(optimizer)
+                        grad_scaler.update()
 
                 pbar.update(images.shape[0])
                 global_step += 1
@@ -202,7 +195,7 @@ def train_net(
 
                 if global_step % add_step == 0:
 
-                    val_score = evaluate(net, val_loader, device).item()
+                    val_score = evaluate(net, val_loader, device, num_classes).item()
                     results["val_scores"].append(val_score)
                     scheduler.step(val_score)
                     if val_score > best_val_score + delta:
@@ -219,13 +212,13 @@ def train_net(
                     ):
                         old_num_train = len(train_loader.dataset)
                         cur_patience = 0
-
-                        add_ids = cost_funct(net, device, data[pool_idxs, 0])
+                        # not functional yet
+                        add_ids = cost_funct(net, device, x[pool_idxs, 0])
                         add_set = TensorDataset(
                             *[
                                 torch.Tensor(input)
                                 for input in my_data.make_dataset(
-                                    data[pool_idxs[add_ids]],
+                                    x[pool_idxs[add_ids]],
                                     img_size=image_size,
                                     offset=offset,
                                 )
@@ -297,7 +290,7 @@ def get_args():
         "--foldername",
         dest="foldername",
         type=str,
-        default="lno",
+        default="graphite_halfHour",
     )
     parser.add_argument(
         "--experiment_name",
@@ -346,7 +339,7 @@ def get_args():
         "--bilinear", action="store_true", default=False, help="Use bilinear upsampling"
     )
     parser.add_argument(
-        "--classes", "-c", type=int, default=3, help="Number of classes"
+        "--classes", "-c", type=int, default=6, help="Number of classes"
     )
 
     return parser.parse_args()
@@ -369,29 +362,16 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_classes is the number of probabilities you want to get per pixel
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    net = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
+
     if args.cost_function == "Random":
         cost_function = random_cost_function
     else:
 
         cost_function = aq_cost_function
 
-    logging.info(
-        f"Network:\n"
-        f"\t{net.n_channels} input channels\n"
-        f"\t{net.n_classes} output channels (classes)\n"
-        f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
-    )
-
-    net.to(device=device)
-
     train_net(
-        net=net,
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.lr,

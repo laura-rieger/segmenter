@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "CheckCode",
+        "FirstTrial",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
@@ -21,13 +21,18 @@ params_to_vary = {
     "scale": [
         0.5,
     ],
-    "foldername": ["graphite"],
-    "epochs": [2],
+    "foldername": [
+        "graphite_halfHour",
+        "lno_halfHour",
+        "lno_hour",
+        "graphiteHour",
+    ],
+    "epochs": [50],
     "image-size": [
         128,
     ],
     "add_step": [
-        20,
+        35,
     ],
     "offset": [
         64,
