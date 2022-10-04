@@ -62,7 +62,6 @@ def train_net(
     )
     results["num_classes"] = num_classes
     x, y = x[:-4], y[:-4]  # just don't touch the last four
-    x
 
     all_idxs = np.arange(len(x))
     np.random.seed(0)
@@ -138,40 +137,40 @@ def train_net(
                 images,
                 true_masks,
             ) in train_loader:
-                if np.random.uniform() > 0.5:
-                    images = torch.flip(
-                        images,
-                        [
-                            2,
-                        ],
-                    )
-                    true_masks = torch.flip(
-                        true_masks,
-                        [
-                            1,
-                        ],
-                    )
-                if np.random.uniform() > 0.5:
-                    images = torch.flip(
-                        images,
-                        [
-                            3,
-                        ],
-                    )
-                    true_masks = torch.flip(
-                        true_masks,
-                        [
-                            2,
-                        ],
-                    )
+                # if np.random.uniform() > 0.5:
+                #     images = torch.flip(
+                #         images,
+                #         [
+                #             2,
+                #         ],
+                #     )
+                #     true_masks = torch.flip(
+                #         true_masks,
+                #         [
+                #             1,
+                #         ],
+                #     )
+                # if np.random.uniform() > 0.5:
+                #     images = torch.flip(
+                #         images,
+                #         [
+                #             3,
+                #         ],
+                #     )
+                #     true_masks = torch.flip(
+                #         true_masks,
+                #         [
+                #             2,
+                #         ],
+                #     )
 
                 images = images.to(device=device, dtype=torch.float32)
-
                 true_masks = true_masks.to(device=device, dtype=torch.long)
 
                 with torch.cuda.amp.autocast(enabled=amp):
-                    masks_pred = net(images)
+
                     if torch.any(true_masks != 255):
+                        masks_pred = net(images)
                         loss = criterion(masks_pred, true_masks)
                         # test_out = F.softmax(masks_pred, dim=1).float()
 
@@ -187,9 +186,9 @@ def train_net(
                         grad_scaler.step(optimizer)
                         grad_scaler.update()
 
-                pbar.update(images.shape[0])
-                global_step += 1
-                epoch_loss += loss.item()
+                        pbar.update(images.shape[0])
+                        global_step += 1
+                        epoch_loss += loss.item()
 
                 pbar.set_postfix(**{"loss (batch)": loss.item()})
 
@@ -251,6 +250,38 @@ def train_net(
                 break
         if break_cond:
             break
+    # do a final evaluation
+    net.load_state_dict(best_weights)
+    # load evaluation data
+    if "lno" in dataset:
+        x, y, num_classes = my_data.load_layer_data(
+            oj(config["DATASET"]["data_path"], "lno")
+        )
+        x, y = x[:-4], y[:-4]  # just don't touch the last four
+        all_idxs = np.arange(len(x))
+        np.random.seed(0)
+        np.random.shuffle(all_idxs)
+        n_val = np.maximum(int(len(x) * val_percent), 1)
+        val_idxs = all_idxs[n_train:]
+        val_set = TensorDataset(
+            *[
+                torch.Tensor(input)
+                for input in my_data.make_dataset(
+                    x[val_idxs],
+                    y[val_idxs],
+                    img_size=image_size,
+                    offset=offset,
+                )
+            ]
+        )
+
+        final_dice_score = evaluate(net, val_loader, device, num_classes).item()
+        results["final_dice_score"] = final_dice_score
+        wandb.log(
+            {
+                "final_dice_score": final_dice_score,
+            }
+        )
 
     pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 

@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "FirstTrial",
+        "LNODrillingdown",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
@@ -22,10 +22,9 @@ params_to_vary = {
         0.5,
     ],
     "foldername": [
-        "graphite_halfHour",
         "lno_halfHour",
         "lno_hour",
-        "graphiteHour",
+        "lno"
     ],
     "epochs": [50],
     "image-size": [
