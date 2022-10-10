@@ -24,7 +24,7 @@ from utils.dice_score import dice_loss
 from evaluate import (
     evaluate,
     random_cost_function,
-    aq_cost_function_loader,
+    std_cost_function,
 )
 from unet import UNet
 import wandb
@@ -144,9 +144,7 @@ def train_net(
     optimizer = optim.Adamax(
         net.parameters(),
     )
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "max", patience=2
-    )  # goal: maximize Dice score
+
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     global_step = 0
@@ -154,7 +152,7 @@ def train_net(
     # 5. Begin training
     best_val_score = 0
     delta = 0.0001
-    patience = 5
+    patience = 10
     cur_patience = 0
     best_weights = None
 
@@ -226,8 +224,10 @@ def train_net(
 
                     val_score = evaluate(net, val_loader, device, num_classes).item()
                     results["val_scores"].append(val_score)
-                    scheduler.step(val_score)
-                    if val_score > best_val_score + delta:
+
+                    # if the dataset is the roughly annotated one, we just train until the end (those are annotated with hour/Hour)
+                    if val_score > best_val_score + delta or "our" in dataset:
+
                         best_val_score = val_score
                         best_weights = net.state_dict()
                         cur_patience = 0
@@ -240,7 +240,7 @@ def train_net(
                         old_num_train = len(train_loader.dataset)
                         cur_patience = 0
 
-                        add_ids = cost_funct(net, device, pool_loader, n_choose=16)
+                        add_ids = cost_funct(net, device, pool_loader, n_choose=8)
                         add_set = TensorDataset(
                             *[
                                 torch.Tensor(x_pool_fine[add_ids]),
@@ -292,7 +292,7 @@ def train_net(
         np.random.seed(0)
         np.random.shuffle(all_idxs)
         n_val = np.maximum(int(len(x) * val_percent), 1)
-        val_idxs = all_idxs[n_train:]
+        val_idxs = all_idxs[-n_val:]
         val_set = TensorDataset(
             *[
                 torch.Tensor(input)
@@ -304,13 +304,16 @@ def train_net(
                 )
             ]
         )
-        val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+        val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
 
-        final_dice_score = evaluate(net, val_loader, device, num_classes).item()
-        results["final_dice_score"] = final_dice_score
+        final_dice_score = evaluate(net, val_loader, device, num_classes)
+        if type(final_dice_score) == torch.Tensor:
+            results["final_dice_score"] = final_dice_score.item()
+        else:
+            results["final_dice_score"] = final_dice_score
         wandb.log(
             {
-                "final_dice_score": final_dice_score,
+                "final_dice_score": results["final_dice_score"],
             }
         )
 
@@ -431,7 +434,7 @@ if __name__ == "__main__":
         cost_function = random_cost_function
     else:
 
-        cost_function = aq_cost_function_loader
+        cost_function = std_cost_function
 
     train_net(
         epochs=args.epochs,

@@ -4,26 +4,28 @@ import os
 from simple_slurm import Slurm
 import platform
 
-is_windows = platform.system() == 'Windows'
+is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "Aq5",
+        "LNOSweep",
     ],
-    "seed": [x for x in range(5)],
-    "cost_function": ["Pool"],
-    "init_train_ratio": [
-        1.,
-    ],
+    "learningrate": [0.01],
+    "seed": [x for x in range(3)],
+    "cost_function": ["Mean", "Random"],
+    "add_ratio": [0, .0250, .05, .15, .25, .3, .5],
     "batch-size": [128],
     "scale": [
-        .5,
+        0.5,
     ],
-    "epochs": [3000],
+    "foldername": [
+        "lno_halfHour",
+    ],
+    "epochs": [10],
     "image-size": [
         128,
     ],
     "add_step": [
-        10,
+        35,
     ],
     "offset": [
         64,
@@ -42,7 +44,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:45:00",
+        time="0-00:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

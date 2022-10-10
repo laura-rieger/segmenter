@@ -6,14 +6,14 @@ import numpy as np
 from utils.dice_score import multiclass_dice_coeff, dice_coeff
 
 
-def random_cost_function(net, device, imgs, n_choose=1):
-    idxs = np.arange(len(imgs))
+def random_cost_function(net, device, loader, n_choose=-1):
+    idxs = np.arange(len(loader.dataset))
     np.random.seed()
     np.random.shuffle(idxs)
     return idxs[-n_choose:]
 
 
-def aq_cost_function_loader(net, device, loader, n_choose=-1):
+def std_cost_function(net, device, loader, n_choose=-1):
 
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
@@ -40,9 +40,11 @@ def aq_cost_function_loader(net, device, loader, n_choose=-1):
             std_arr[
                 i * loader.batch_size : i * loader.batch_size + len(output)
             ] = output
-            # std_arr[i] = output.max(axis=0).mean()  #mean
-    # return std_arr
-    return np.argsort(std_arr)[:n_choose]
+
+    if n_choose == -1:
+        return np.argsort(std_arr)
+    else:
+        return np.argsort(std_arr)[:n_choose]
 
 
 def evaluate(net, dataloader, device, num_classes):
