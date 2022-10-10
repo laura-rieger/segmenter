@@ -15,7 +15,7 @@ def random_cost_function(net, device, imgs, n_choose=1):
 
 def aq_cost_function_loader(net, device, loader, n_choose=-1):
 
-    std_arr = np.zeros((len(loader.dataset)))
+    std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
     with torch.no_grad():
         for i, (image, _) in tqdm(
@@ -41,6 +41,7 @@ def aq_cost_function_loader(net, device, loader, n_choose=-1):
                 i * loader.batch_size : i * loader.batch_size + len(output)
             ] = output
             # std_arr[i] = output.max(axis=0).mean()  #mean
+    # return std_arr
     return np.argsort(std_arr)[:n_choose]
 
 

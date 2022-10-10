@@ -7,14 +7,14 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNOActive",
+        "LNOActive_correctedAAA",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
     "cost_function": [
         "Mean",
     ],
-    "add_ratio": [0.025],
+    "add_ratio": [0.025, 0],
     "batch-size": [128],
     "scale": [
         0.5,

@@ -95,7 +95,7 @@ def train_net(
                 x[val_idxs],
                 y[val_idxs],
                 img_size=image_size,
-                offset=offset,
+                offset=image_size,
             )
         ]
     )
@@ -115,7 +115,7 @@ def train_net(
         x_pool[pool_ids],
         y_pool[pool_ids],
         img_size=image_size,
-        offset=offset,
+        offset=image_size,
     )
 
     pool_set = TensorDataset(
@@ -169,6 +169,32 @@ def train_net(
                 true_masks,
             ) in train_loader:
 
+                if np.random.uniform() > 0.5:
+                    images = torch.flip(
+                        images,
+                        [
+                            2,
+                        ],
+                    )
+                    true_masks = torch.flip(
+                        true_masks,
+                        [
+                            1,
+                        ],
+                    )
+                if np.random.uniform() > 0.5:
+                    images = torch.flip(
+                        images,
+                        [
+                            3,
+                        ],
+                    )
+                    true_masks = torch.flip(
+                        true_masks,
+                        [
+                            2,
+                        ],
+                    )
                 images = images.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.long)
 
@@ -274,13 +300,13 @@ def train_net(
                     x[val_idxs],
                     y[val_idxs],
                     img_size=image_size,
-                    offset=offset,
+                    offset=image_size,
                 )
             ]
         )
         val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
-        final_dice_score = evaluate(net, val_loader, device, num_classes)
+        final_dice_score = evaluate(net, val_loader, device, num_classes).item()
         results["final_dice_score"] = final_dice_score
         wandb.log(
             {
@@ -299,7 +325,7 @@ def get_args():
         description="Train the UNet on images and target masks"
     )
     parser.add_argument(
-        "--epochs", "-e", metavar="E", type=int, default=50, help="Number of epochs"
+        "--epochs", "-e", metavar="E", type=int, default=1, help="Number of epochs"
     )
     parser.add_argument(
         "--batch-size",
