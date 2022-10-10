@@ -21,7 +21,11 @@ from torch.nn import functional as F
 # from torch.utils.data import DataLoader, TensorDataset
 
 from utils.dice_score import dice_loss
-from evaluate import evaluate, aq_cost_function, random_cost_function
+from evaluate import (
+    evaluate,
+    random_cost_function,
+    aq_cost_function_loader,
+)
 from unet import UNet
 import wandb
 
@@ -48,14 +52,14 @@ def train_net(
     image_size=128,
     offset=64,
     amp: bool = False,
-    init_train_ratio=1.0,
-    final_ratio=0.75,
+    add_ratio=0.1,
     add_step=0,
     cost_funct=random_cost_function,
     dataset=None,
 ):
-    # 1. Create dataset
+
     results["val_scores"] = []
+    # 1. Create dataset
     # val_scores = []
     x, y, num_classes = my_data.load_layer_data(
         oj(config["DATASET"]["data_path"], dataset)
@@ -70,8 +74,8 @@ def train_net(
     n_train = len(x) - n_val
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
-    init_train_idxs = all_train_idxs[: np.maximum(1, int(init_train_ratio * n_train))]
-    pool_idxs = all_train_idxs[np.maximum(1, int(init_train_ratio * n_train)) :]
+    init_train_idxs = all_train_idxs
+    # pool_idxs = all_train_idxs[np.maximum(1, int(init_train_ratio * n_train)) :]
 
     train_set = TensorDataset(
         *[
@@ -96,9 +100,36 @@ def train_net(
         ]
     )
     num_train = len(train_set)
+    x_pool, y_pool, _ = my_data.load_layer_data(
+        oj(config["DATASET"]["data_path"], "lno")
+    )
+
+    x_pool, y_pool = x_pool[:-4], y_pool[:-4]
+
+    all_idxs = np.arange(len(x_pool))
+    np.random.seed(0)
+    np.random.shuffle(all_idxs)
+    n_train_pool = np.maximum(int(len(x) * (1 - val_percent)), 1)
+    pool_ids = all_idxs[:n_train_pool]
+    x_pool_fine, y_pool_fine = my_data.make_dataset(
+        x_pool[pool_ids],
+        y_pool[pool_ids],
+        img_size=image_size,
+        offset=offset,
+    )
+
+    pool_set = TensorDataset(
+        *[
+            torch.Tensor(x_pool_fine),
+            torch.Tensor(y_pool_fine),
+        ]
+    )
+
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=num_workers, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+    pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
+    initial_pool_len = len(pool_loader.dataset)
 
     old_num_train = len(train_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
@@ -137,32 +168,6 @@ def train_net(
                 images,
                 true_masks,
             ) in train_loader:
-                # if np.random.uniform() > 0.5:
-                #     images = torch.flip(
-                #         images,
-                #         [
-                #             2,
-                #         ],
-                #     )
-                #     true_masks = torch.flip(
-                #         true_masks,
-                #         [
-                #             1,
-                #         ],
-                #     )
-                # if np.random.uniform() > 0.5:
-                #     images = torch.flip(
-                #         images,
-                #         [
-                #             3,
-                #         ],
-                #     )
-                #     true_masks = torch.flip(
-                #         true_masks,
-                #         [
-                #             2,
-                #         ],
-                #     )
 
                 images = images.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.long)
@@ -172,7 +177,6 @@ def train_net(
                     if torch.any(true_masks != 255):
                         masks_pred = net(images)
                         loss = criterion(masks_pred, true_masks)
-                        # test_out = F.softmax(masks_pred, dim=1).float()
 
                         loss_dice = dice_loss(
                             F.softmax(masks_pred, dim=1).float(),
@@ -205,33 +209,33 @@ def train_net(
                         cur_patience += 1
                     if (
                         add_step > 0
-                        and len(pool_idxs) > 0
-                        and len(pool_idxs)
-                        >= (len(init_train_idxs) + len(pool_idxs) * final_ratio)
+                        and len(pool_loader.dataset) / initial_pool_len > 1 - add_ratio
                     ):
                         old_num_train = len(train_loader.dataset)
                         cur_patience = 0
-                        # not functional yet
-                        add_ids = cost_funct(net, device, x[pool_idxs, 0])
+
+                        add_ids = cost_funct(net, device, pool_loader, n_choose=16)
                         add_set = TensorDataset(
                             *[
-                                torch.Tensor(input)
-                                for input in my_data.make_dataset(
-                                    x[pool_idxs[add_ids]],
-                                    img_size=image_size,
-                                    offset=offset,
-                                )
+                                torch.Tensor(x_pool_fine[add_ids]),
+                                torch.Tensor(y_pool_fine[add_ids]),
                             ]
                         )
                         newTrainSet = ConcatDataset([train_loader.dataset, add_set])
                         train_loader = DataLoader(
                             newTrainSet, shuffle=True, **loader_args
                         )
-                        init_train_idxs = np.concatenate(
-                            [init_train_idxs, pool_idxs[add_ids]]
+                        # delete from pool
+                        x_pool_fine = np.delete(x_pool_fine, add_ids, axis=0)
+                        y_pool_fine = np.delete(y_pool_fine, add_ids, axis=0)
+                        pool_set = TensorDataset(
+                            *[
+                                torch.Tensor(x_pool_fine),
+                                torch.Tensor(y_pool_fine),
+                            ]
                         )
+                        pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
 
-                        pool_idxs = np.delete(pool_idxs, add_ids)  # remove from pool
                     wandb.log(
                         {
                             "dice_score": val_score,
@@ -274,8 +278,9 @@ def train_net(
                 )
             ]
         )
+        val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
-        final_dice_score = evaluate(net, val_loader, device, num_classes).item()
+        final_dice_score = evaluate(net, val_loader, device, num_classes)
         results["final_dice_score"] = final_dice_score
         wandb.log(
             {
@@ -312,10 +317,10 @@ def get_args():
         default="Test",
     )
     parser.add_argument(
-        "--init_train_ratio",
-        dest="init_train_ratio",
+        "--add_ratio",
+        dest="add_ratio",
         type=float,
-        default=0.3,
+        default=0.1,
     )
     parser.add_argument(
         "--foldername",
@@ -400,7 +405,7 @@ if __name__ == "__main__":
         cost_function = random_cost_function
     else:
 
-        cost_function = aq_cost_function
+        cost_function = aq_cost_function_loader
 
     train_net(
         epochs=args.epochs,
@@ -413,7 +418,7 @@ if __name__ == "__main__":
         val_percent=args.val / 100,
         amp=args.amp,
         add_step=args.add_step,
-        init_train_ratio=args.init_train_ratio,
+        add_ratio=args.add_ratio,
         cost_funct=cost_function,
         dataset=args.foldername,
     )

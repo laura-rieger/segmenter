@@ -4,24 +4,32 @@ import os
 from simple_slurm import Slurm
 import platform
 
-is_windows = platform.system() == 'Windows'
+is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "Aq7",
+        "LNOActive",
     ],
-    "seed": [x for x in range(5)],
-    "cost_function": ["Mean", "Random"],
-    "init_train_ratio": [.1],
+    "learningrate": [0.01],
+    "seed": [x for x in range(1)],
+    "cost_function": [
+        "Mean",
+    ],
+    "add_ratio": [
+        0.0,
+    ],
     "batch-size": [128],
     "scale": [
-        .5,
+        0.5,
     ],
-    "epochs": [3000],
+    "foldername": [
+        "lno",
+    ],
+    "epochs": [50],
     "image-size": [
         128,
     ],
     "add_step": [
-        5,
+        35,
     ],
     "offset": [
         64,
@@ -40,7 +48,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:45:00",
+        time="0-00:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

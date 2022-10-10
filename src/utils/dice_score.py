@@ -52,5 +52,7 @@ def multiclass_dice_coeff(
 def dice_loss(input: Tensor, target: Tensor, num_classes, multiclass: bool = False):
     # Dice loss (objective to minimize) between 0 and 1
     # assert input.size() == target.size()
-    fn = multiclass_dice_coeff if multiclass else dice_coeff
-    return 1 - fn(input, target, num_classes, reduce_batch_first=True)
+
+    return 1 - multiclass_dice_coeff(
+        input, target, num_classes, reduce_batch_first=True
+    )

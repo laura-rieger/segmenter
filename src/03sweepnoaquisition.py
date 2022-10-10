@@ -7,24 +7,20 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNODrillingdown",
+        "LNOActive",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
     "cost_function": [
         "Mean",
     ],
-    "init_train_ratio": [
-        1.0,
-    ],
+    "add_ratio": [0.025],
     "batch-size": [128],
     "scale": [
         0.5,
     ],
     "foldername": [
         "lno_halfHour",
-        "lno_hour",
-        "lno"
     ],
     "epochs": [50],
     "image-size": [

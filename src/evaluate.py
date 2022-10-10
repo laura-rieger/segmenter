@@ -1,3 +1,4 @@
+from json import load
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -12,29 +13,35 @@ def random_cost_function(net, device, imgs, n_choose=1):
     return idxs[-n_choose:]
 
 
-def aq_cost_function(net, device, imgs, n_choose=1):
-    print("Fix aq cost")
-    import sys
+def aq_cost_function_loader(net, device, loader, n_choose=-1):
 
-    sys.exit()
-    logsoftmax = torch.nn.LogSoftmax(dim=0)
-    std_arr = np.zeros((len(imgs)))
+    std_arr = np.zeros((len(loader.dataset)))
     net.eval()
     with torch.no_grad():
-        for i in range(len(imgs)):
+        for i, (image, _) in tqdm(
+            enumerate(loader),
+            total=int(len(loader.dataset) / loader.batch_size),
+            desc="AQ",
+            unit="batch",
+            leave=False,
+        ):  # we only use the images, not the labels
 
-            img_t = torch.Tensor(imgs[i][None, None, :]).to(device)
+            image = image.to(device)
 
-            output = net.forward(img_t)  # .cpu().detach().numpy()[0]
-            # return output
-            # print(output.shape)
-            # std = np.quantile(output.std(axis=0), .1)  #Std
-
-            std_arr[i] = (
-                (logsoftmax(output[0]) * torch.softmax(output[0], axis=0)).mean().item()
+            output = (
+                F.softmax(net.forward(image), dim=1)
+                .std(dim=1)
+                .mean(axis=(1, 2))
+                .detach()
+                .cpu()
+                .numpy()
             )
+
+            std_arr[
+                i * loader.batch_size : i * loader.batch_size + len(output)
+            ] = output
             # std_arr[i] = output.max(axis=0).mean()  #mean
-    return np.argsort(std_arr)[-n_choose:]
+    return np.argsort(std_arr)[:n_choose]
 
 
 def evaluate(net, dataloader, device, num_classes):
