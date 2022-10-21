@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNOComparison",
+        "LNOComparison2",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
@@ -28,7 +28,7 @@ params_to_vary = {
         35,
     ],
     "offset": [
-        64,
+        128,
     ],
 }
 

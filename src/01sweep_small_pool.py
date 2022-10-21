@@ -7,12 +7,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNOSweep",
+        "LNOSweepLong3",
     ],
     "learningrate": [0.01],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(1)],
     "cost_function": ["Mean", "Random"],
-    "add_ratio": [0, .0250, .05, .15, .25, .3, .5],
+    "add_ratio": [0, 0.1, 0.3],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -20,15 +20,17 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [10],
+    "epochs": [
+        50,
+    ],
     "image-size": [
         128,
     ],
     "add_step": [
-        35,
+        2,
     ],
     "offset": [
-        64,
+        128,
     ],
 }
 

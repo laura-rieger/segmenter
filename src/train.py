@@ -41,6 +41,67 @@ results["file_name"] = file_name
 wandb.config["file_name"] = file_name
 
 
+def train(
+    net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, amp
+):
+    net.train()
+    epoch_loss = 0
+
+    for (
+        images,
+        true_masks,
+    ) in train_loader:
+        if np.random.uniform() > 0.5:
+            images = torch.flip(
+                images,
+                [
+                    2,
+                ],
+            )
+            true_masks = torch.flip(
+                true_masks,
+                [
+                    1,
+                ],
+            )
+        if np.random.uniform() > 0.5:
+            images = torch.flip(
+                images,
+                [
+                    3,
+                ],
+            )
+            true_masks = torch.flip(
+                true_masks,
+                [
+                    2,
+                ],
+            )
+        images = images.to(device=device, dtype=torch.float32)
+        true_masks = true_masks.to(device=device, dtype=torch.long)
+
+        with torch.cuda.amp.autocast(enabled=amp):
+
+            if torch.any(true_masks != 255):
+                masks_pred = net(images)
+                loss = criterion(masks_pred, true_masks)
+
+                loss_dice = dice_loss(
+                    F.softmax(masks_pred, dim=1).float(),
+                    true_masks,
+                    num_classes,
+                    multiclass=True,
+                )
+
+                optimizer.zero_grad(set_to_none=True)
+                grad_scaler.scale(loss + loss_dice).backward()
+                grad_scaler.step(optimizer)
+                grad_scaler.update()
+
+                epoch_loss += loss.item()
+    return epoch_loss / len(train_loader)
+
+
 def train_net(
     device,
     epochs: int = 5,
@@ -147,139 +208,75 @@ def train_net(
 
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss(ignore_index=255)
-    global_step = 0
 
     # 5. Begin training
     best_val_score = 0
     delta = 0.0001
-    patience = 10
+    patience = epochs
     cur_patience = 0
     best_weights = None
-
-    break_cond = False
-
     for epoch in range(1, epochs + 1):
-        net.train()
-        epoch_loss = 0
-        with tqdm(total=num_train, desc=f"Epoch {epoch}/{epochs}", unit="img") as pbar:
-            for (
-                images,
-                true_masks,
-            ) in train_loader:
+        train_loss = train(
+            net,
+            train_loader,
+            criterion,
+            num_classes,
+            optimizer,
+            device,
+            grad_scaler,
+            amp,
+        )
 
-                if np.random.uniform() > 0.5:
-                    images = torch.flip(
-                        images,
-                        [
-                            2,
-                        ],
-                    )
-                    true_masks = torch.flip(
-                        true_masks,
-                        [
-                            1,
-                        ],
-                    )
-                if np.random.uniform() > 0.5:
-                    images = torch.flip(
-                        images,
-                        [
-                            3,
-                        ],
-                    )
-                    true_masks = torch.flip(
-                        true_masks,
-                        [
-                            2,
-                        ],
-                    )
-                images = images.to(device=device, dtype=torch.float32)
-                true_masks = true_masks.to(device=device, dtype=torch.long)
+        val_score = evaluate(net, val_loader, device, num_classes).item()
+        results["val_scores"].append(val_score)
 
-                with torch.cuda.amp.autocast(enabled=amp):
+        # if the dataset is the roughly annotated one, we just train until the end (those are annotated with hour/Hour)
+        if val_score > best_val_score + delta or "our" in dataset:
 
-                    if torch.any(true_masks != 255):
-                        masks_pred = net(images)
-                        loss = criterion(masks_pred, true_masks)
+            best_val_score = val_score
+            best_weights = net.state_dict()
+            cur_patience = 0
+        else:
+            cur_patience += 1
+        if (
+            epoch % add_step == 0
+            and len(pool_loader.dataset) / initial_pool_len > 1 - add_ratio
+        ):
+            old_num_train = len(train_loader.dataset)
+            cur_patience = 0
 
-                        loss_dice = dice_loss(
-                            F.softmax(masks_pred, dim=1).float(),
-                            true_masks,
-                            num_classes,
-                            multiclass=True,
-                        )
+            add_ids = cost_funct(net, device, pool_loader, n_choose=8)
+            add_set = TensorDataset(
+                *[
+                    torch.Tensor(x_pool_fine[add_ids]),
+                    torch.Tensor(y_pool_fine[add_ids]),
+                ]
+            )
+            newTrainSet = ConcatDataset([train_loader.dataset, add_set])
+            train_loader = DataLoader(newTrainSet, shuffle=True, **loader_args)
+            # delete from pool
+            x_pool_fine = np.delete(x_pool_fine, add_ids, axis=0)
+            y_pool_fine = np.delete(y_pool_fine, add_ids, axis=0)
+            pool_set = TensorDataset(
+                *[
+                    torch.Tensor(x_pool_fine),
+                    torch.Tensor(y_pool_fine),
+                ]
+            )
+            pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
 
-                        optimizer.zero_grad(set_to_none=True)
-                        grad_scaler.scale(loss + loss_dice).backward()
-                        grad_scaler.step(optimizer)
-                        grad_scaler.update()
+            wandb.log(
+                {
+                    "dice_score": val_score,
+                    "num_train": old_num_train,
+                    "train_loss": train_loss,
+                }
+            )
 
-                        pbar.update(images.shape[0])
-                        global_step += 1
-                        epoch_loss += loss.item()
+            # if cur_patience > patience:
 
-                pbar.set_postfix(**{"loss (batch)": loss.item()})
+            #     break
 
-                if global_step % add_step == 0:
-
-                    val_score = evaluate(net, val_loader, device, num_classes).item()
-                    results["val_scores"].append(val_score)
-
-                    # if the dataset is the roughly annotated one, we just train until the end (those are annotated with hour/Hour)
-                    if val_score > best_val_score + delta or "our" in dataset:
-
-                        best_val_score = val_score
-                        best_weights = net.state_dict()
-                        cur_patience = 0
-                    else:
-                        cur_patience += 1
-                    if (
-                        add_step > 0
-                        and len(pool_loader.dataset) / initial_pool_len > 1 - add_ratio
-                    ):
-                        old_num_train = len(train_loader.dataset)
-                        cur_patience = 0
-
-                        add_ids = cost_funct(net, device, pool_loader, n_choose=8)
-                        add_set = TensorDataset(
-                            *[
-                                torch.Tensor(x_pool_fine[add_ids]),
-                                torch.Tensor(y_pool_fine[add_ids]),
-                            ]
-                        )
-                        newTrainSet = ConcatDataset([train_loader.dataset, add_set])
-                        train_loader = DataLoader(
-                            newTrainSet, shuffle=True, **loader_args
-                        )
-                        # delete from pool
-                        x_pool_fine = np.delete(x_pool_fine, add_ids, axis=0)
-                        y_pool_fine = np.delete(y_pool_fine, add_ids, axis=0)
-                        pool_set = TensorDataset(
-                            *[
-                                torch.Tensor(x_pool_fine),
-                                torch.Tensor(y_pool_fine),
-                            ]
-                        )
-                        pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
-
-                    wandb.log(
-                        {
-                            "dice_score": val_score,
-                            "num_train": old_num_train,
-                            "train_loss": epoch_loss / (add_step * batch_size),
-                        }
-                    )
-
-                    epoch_loss = 0
-
-                if cur_patience > patience:
-                    break_cond = True
-                    break
-
-            if break_cond:
-                break
-        if break_cond:
-            break
     # do a final evaluation
     net.load_state_dict(best_weights)
     # load evaluation data
