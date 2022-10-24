@@ -4,6 +4,20 @@ import os
 from os.path import join as oj
 from skimage import data, io, filters
 
+def make_check_folder(intermittent_path, id):
+    if not os.path.exists(intermittent_path):
+        os.makedirs(intermittent_path)
+    if not os.path.exists(oj(intermittent_path, id)):
+        os.makedirs(oj(intermittent_path, id))
+        os.makedirs(oj(intermittent_path, id, "images"))
+        os.makedirs(oj(intermittent_path, id, "model"))
+    return
+
+def save_progress(net, image_idxs, images, folder_path, id, args):
+    make_check_folder(folder_path, id)
+
+    pass
+
 
 def load_full(data_path):
     files = os.listdir(data_path)

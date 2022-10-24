@@ -6,7 +6,7 @@ import numpy as np
 from utils.dice_score import multiclass_dice_coeff, dice_coeff
 
 
-def random_cost_function(net, device, loader, n_choose=-1):
+def random_cost(net, device, loader, n_choose=-1):
     idxs = np.arange(len(loader.dataset))
     np.random.seed()
     np.random.shuffle(idxs)

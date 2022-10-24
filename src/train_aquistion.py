@@ -52,31 +52,11 @@ def train(
         true_masks,
     ) in train_loader:
         if np.random.uniform() > 0.5:
-            images = torch.flip(
-                images,
-                [
-                    2,
-                ],
-            )
-            true_masks = torch.flip(
-                true_masks,
-                [
-                    1,
-                ],
-            )
+            images = torch.flip(images, [2,],)
+            true_masks = torch.flip(true_masks, [1,],)
         if np.random.uniform() > 0.5:
-            images = torch.flip(
-                images,
-                [
-                    3,
-                ],
-            )
-            true_masks = torch.flip(
-                true_masks,
-                [
-                    2,
-                ],
-            )
+            images = torch.flip(images,[ 3,],)
+            true_masks = torch.flip(true_masks,[2,],)
         images = images.to(device=device, dtype=torch.float32)
         true_masks = true_masks.to(device=device, dtype=torch.long)
 
@@ -179,12 +159,7 @@ def train_net(
         offset=image_size,
     )
 
-    pool_set = TensorDataset(
-        *[
-            torch.Tensor(x_pool_fine),
-            torch.Tensor(y_pool_fine),
-        ]
-    )
+    pool_set = TensorDataset(*[torch.Tensor(x_pool_fine), torch.Tensor(y_pool_fine),])
 
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=num_workers, pin_memory=True)

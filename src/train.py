@@ -1,6 +1,6 @@
 import argparse
 import configparser
-import logging
+
 import os
 
 
@@ -14,18 +14,19 @@ import torch.nn as nn
 from torch import optim
 import pickle as pkl
 from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
-from tqdm import tqdm
+
 import numpy as np
 from torch.nn import functional as F
 
 # from torch.utils.data import DataLoader, TensorDataset
 
 from utils.dice_score import dice_loss
-from evaluate import (
-    evaluate,
-    random_cost_function,
-    std_cost_function,
-)
+import evaluate
+# from evaluate import (
+#     evaluate,
+#     random_cost_function,
+#     std_cost_function,
+# )
 from unet import UNet
 import wandb
 
@@ -52,31 +53,11 @@ def train(
         true_masks,
     ) in train_loader:
         if np.random.uniform() > 0.5:
-            images = torch.flip(
-                images,
-                [
-                    2,
-                ],
-            )
-            true_masks = torch.flip(
-                true_masks,
-                [
-                    1,
-                ],
-            )
+            images = torch.flip(images, [2, ],)
+            true_masks = torch.flip(true_masks, [1, ],)
         if np.random.uniform() > 0.5:
-            images = torch.flip(
-                images,
-                [
-                    3,
-                ],
-            )
-            true_masks = torch.flip(
-                true_masks,
-                [
-                    2,
-                ],
-            )
+            images = torch.flip(images, [3, ],)
+            true_masks = torch.flip(true_masks, [2, ],)
         images = images.to(device=device, dtype=torch.float32)
         true_masks = true_masks.to(device=device, dtype=torch.long)
 
@@ -102,28 +83,14 @@ def train(
     return epoch_loss / len(train_loader)
 
 
-def train_net(
-    device,
-    epochs: int = 5,
-    batch_size: int = 1,
-    learning_rate: float = 1e-5,
-    val_percent: float = 0.25,
-    save_checkpoint: bool = True,
-    img_scale: float = 0.5,
-    image_size=128,
-    offset=64,
-    amp: bool = False,
-    add_ratio=0.1,
-    add_step=0,
-    cost_funct=random_cost_function,
-    dataset=None,
-):
+def train_net(device, args):
 
+    cost_function = getattr(evaluate, args.cost_function)
     results["val_scores"] = []
     # 1. Create dataset
     # val_scores = []
     x, y, num_classes = my_data.load_layer_data(
-        oj(config["DATASET"]["data_path"], dataset)
+        oj(config["DATASET"]["data_path"], args.foldername)
     )
     results["num_classes"] = num_classes
     x, y = x[:-4], y[:-4]  # just don't touch the last four
@@ -131,7 +98,7 @@ def train_net(
     all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
-    n_val = np.maximum(int(len(x) * val_percent), 1)
+    n_val = np.maximum(int(len(x) * args.val / 100), 1)
     n_train = len(x) - n_val
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
@@ -144,8 +111,8 @@ def train_net(
             for input in my_data.make_dataset(
                 x[init_train_idxs],
                 y[init_train_idxs],
-                img_size=image_size,
-                offset=offset,
+                img_size=args.image_size,
+                offset=args.offset,
             )
         ]
     )
@@ -155,12 +122,12 @@ def train_net(
             for input in my_data.make_dataset(
                 x[val_idxs],
                 y[val_idxs],
-                img_size=image_size,
-                offset=image_size,
+                img_size=args.image_size,
+                offset=args.image_size,
             )
         ]
     )
-    num_train = len(train_set)
+    # num_train = len(train_set)
     x_pool, y_pool, _ = my_data.load_layer_data(
         oj(config["DATASET"]["data_path"], "lno")
     )
@@ -170,24 +137,19 @@ def train_net(
     all_idxs = np.arange(len(x_pool))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
-    n_train_pool = np.maximum(int(len(x) * (1 - val_percent)), 1)
+    n_train_pool = np.maximum(int(len(x) * (1 - args.val / 100)), 1)
     pool_ids = all_idxs[:n_train_pool]
     x_pool_fine, y_pool_fine = my_data.make_dataset(
         x_pool[pool_ids],
         y_pool[pool_ids],
-        img_size=image_size,
-        offset=image_size,
+        img_size=args.image_size,
+        offset=args.image_size,
     )
 
-    pool_set = TensorDataset(
-        *[
-            torch.Tensor(x_pool_fine),
-            torch.Tensor(y_pool_fine),
-        ]
-    )
+    pool_set = TensorDataset(*[torch.Tensor(x_pool_fine), torch.Tensor(y_pool_fine),])
 
     # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+    loader_args = dict(batch_size=args.batch_size, num_workers=num_workers, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_loader.dataset)
@@ -200,22 +162,22 @@ def train_net(
     ).to(device=device)
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(
-        net.parameters(), lr=learning_rate, weight_decay=0, momentum=0.0
+        net.parameters(), lr=args.lr, weight_decay=0, momentum=0.0
     )
     optimizer = optim.Adamax(
         net.parameters(),
     )
 
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
     criterion = nn.CrossEntropyLoss(ignore_index=255)
 
     # 5. Begin training
     best_val_score = 0
     delta = 0.0001
-    patience = epochs
+    patience = args.epochs  # no early stopping
     cur_patience = 0
     best_weights = None
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, args.epochs + 1):
         train_loss = train(
             net,
             train_loader,
@@ -224,14 +186,14 @@ def train_net(
             optimizer,
             device,
             grad_scaler,
-            amp,
+            args.amp,
         )
 
-        val_score = evaluate(net, val_loader, device, num_classes).item()
+        val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
 
         # if the dataset is the roughly annotated one, we just train until the end (those are annotated with hour/Hour)
-        if val_score > best_val_score + delta or "our" in dataset:
+        if val_score > best_val_score + delta or "our" in args.foldername:
 
             best_val_score = val_score
             best_weights = net.state_dict()
@@ -239,13 +201,12 @@ def train_net(
         else:
             cur_patience += 1
         if (
-            epoch % add_step == 0
-            and len(pool_loader.dataset) / initial_pool_len > 1 - add_ratio
+            epoch % args.add_step == 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio
         ):
             old_num_train = len(train_loader.dataset)
             cur_patience = 0
 
-            add_ids = cost_funct(net, device, pool_loader, n_choose=8)
+            add_ids = cost_function(net, device, pool_loader, n_choose=8)
             add_set = TensorDataset(
                 *[
                     torch.Tensor(x_pool_fine[add_ids]),
@@ -273,14 +234,14 @@ def train_net(
                 }
             )
 
-            # if cur_patience > patience:
+            if cur_patience > patience:
 
-            #     break
+                break
 
     # do a final evaluation
     net.load_state_dict(best_weights)
     # load evaluation data
-    if "lno" in dataset:
+    if "lno" in args.foldername:
         x, y, num_classes = my_data.load_layer_data(
             oj(config["DATASET"]["data_path"], "lno")
         )
@@ -288,7 +249,7 @@ def train_net(
         all_idxs = np.arange(len(x))
         np.random.seed(0)
         np.random.shuffle(all_idxs)
-        n_val = np.maximum(int(len(x) * val_percent), 1)
+        n_val = np.maximum(int(len(x) * args.val / 100), 1)
         val_idxs = all_idxs[-n_val:]
         val_set = TensorDataset(
             *[
@@ -296,14 +257,14 @@ def train_net(
                 for input in my_data.make_dataset(
                     x[val_idxs],
                     y[val_idxs],
-                    img_size=image_size,
-                    offset=image_size,
+                    img_size=args.image_size,
+                    offset=args.image_size,
                 )
             ]
         )
         val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
 
-        final_dice_score = evaluate(net, val_loader, device, num_classes)
+        final_dice_score = evaluate.evaluate(net, val_loader, device, num_classes)
         if type(final_dice_score) == torch.Tensor:
             results["final_dice_score"] = final_dice_score.item()
         else:
@@ -321,130 +282,38 @@ def train_net(
 
 
 def get_args():
-    parser = argparse.ArgumentParser(
-        description="Train the UNet on images and target masks"
-    )
-    parser.add_argument(
-        "--epochs", "-e", metavar="E", type=int, default=1, help="Number of epochs"
-    )
-    parser.add_argument(
-        "--batch-size",
-        "-b",
-        dest="batch_size",
-        metavar="B",
-        type=int,
-        default=2,
-        help="Batch size",
-    )
-    parser.add_argument(
-        "--cost_function",
-        dest="cost_function",
-        type=str,
-        default="Test",
-    )
-    parser.add_argument(
-        "--add_ratio",
-        dest="add_ratio",
-        type=float,
-        default=0.1,
-    )
-    parser.add_argument(
-        "--foldername",
-        dest="foldername",
-        type=str,
-        default="graphite_halfHour",
-    )
-    parser.add_argument(
-        "--experiment_name",
-        "-g",
-        dest="experiment_name",
-        metavar="G",
-        type=str,
-        default="",
-        help="Name",
-    )
-    parser.add_argument(
-        "--learningrate",
-        "-l",
-        metavar="LR",
-        type=float,
-        default=1e-5,
-        help="Learning rate",
-        dest="lr",
-    )
-    parser.add_argument(
-        "--image-size", dest="image_size", type=int, default=128, help="Image size"
-    )
-    parser.add_argument("--offset", dest="offset", type=int, default=64, help="Offset")
-    parser.add_argument("--seed", "-t", type=int, default=42, help="Seed")
-
-    parser.add_argument(
-        "--scale",
-        "-s",
-        type=float,
-        default=0.5,
-        help="Downscaling factor of the images",
-    )
-    parser.add_argument(
-        "--validation",
-        "-v",
-        dest="val",
-        type=float,
-        default=10.0,
-        help="Percent of the data that is used as validation (0-100)",
-    )
-    parser.add_argument(
-        "--amp", action="store_true", default=False, help="Use mixed precision"
-    )
+    parser = argparse.ArgumentParser(description="Train the UNet on images and target masks")
+    parser.add_argument("--epochs", "-e", type=int, default=1)
+    parser.add_argument("--batch-size","-b", dest="batch_size", type=int, default=2,)
+    parser.add_argument("--cost_function", dest="cost_function", type=str, default="random_cost",)
+    parser.add_argument("--add_ratio", type=float, default=0.1,)
+    parser.add_argument("--foldername", type=str, default="graphite_halfHour",)
+    parser.add_argument("--experiment_name", "-g", type=str, default="",)
+    parser.add_argument("--learningrate", "-l", type=float, default=1e-5, dest="lr",)
+    parser.add_argument("--image-size", dest="image_size", type=int, default=128, )
+    parser.add_argument("--offset", dest="offset", type=int, default=64,)
+    parser.add_argument("--seed", "-t", type=int, default=42,)
+    parser.add_argument("--scale", "-s", type=float, default=0.5, help="Downscaling factor of the images",)
+    parser.add_argument("--validation", "-v", dest="val", type=int, default=10, help="Val percentage (0-100)", )
+    parser.add_argument("--amp", action="store_true", default=False, help="Use mixed precision")
     parser.add_argument("--add_step", type=int, default=1)
-    parser.add_argument(
-        "--bilinear", action="store_true", default=False, help="Use bilinear upsampling"
-    )
-    parser.add_argument(
-        "--classes", "-c", type=int, default=6, help="Number of classes"
-    )
-
+    parser.add_argument("--bilinear", action="store_true", default=False, help="Use bilinear upsampling")
+    parser.add_argument("--classes", "-c", type=int, default=6, help="Number of classes")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = get_args()
     for arg in vars(args):
-        if arg != "save_path":
-            results[str(arg)] = getattr(args, arg)
-            wandb.config[str(arg)] = getattr(args, arg)
 
+        results[str(arg)] = getattr(args, arg)
+        wandb.config[str(arg)] = getattr(args, arg)
     config = configparser.ConfigParser()
     config.read("../config.ini")
-
     save_path = config["PATHS"]["model_path"]
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Using device {device}")
-
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-
-    if args.cost_function == "Random":
-        cost_function = random_cost_function
-    else:
-
-        cost_function = std_cost_function
-
-    train_net(
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        learning_rate=args.lr,
-        image_size=args.image_size,
-        offset=args.offset,
-        device=device,
-        img_scale=args.scale,
-        val_percent=args.val / 100,
-        amp=args.amp,
-        add_step=args.add_step,
-        add_ratio=args.add_ratio,
-        cost_funct=cost_function,
-        dataset=args.foldername,
-    )
+    train_net(device= device, args=args)
