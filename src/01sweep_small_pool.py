@@ -10,9 +10,9 @@ params_to_vary = {
         "LNOSweepLong3",
     ],
     "learningrate": [0.01],
-    "seed": [x for x in range(1)],
+    "seed": [x for x in range(1, 4)],
     "cost_function": ["Mean", "Random"],
-    "add_ratio": [0, 0.1, 0.3],
+    "add_ratio": [0, 0.05, 0.1, 0.3],
     "batch-size": [128],
     "scale": [
         0.5,

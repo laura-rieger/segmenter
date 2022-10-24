@@ -7,10 +7,10 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNOComparison2",
+        "LNOSweepLong3",
     ],
     "learningrate": [0.01],
-    "seed": [x for x in range(1)],
+    "seed": [x for x in range(3)],
     "cost_function": ["Random"],
     "add_ratio": [0.0],
     "batch-size": [128],
@@ -20,15 +20,15 @@ params_to_vary = {
     "foldername": [
         "lno",
     ],
-    "epochs": [10],
+    "epochs": [20],
     "image-size": [
         128,
     ],
     "add_step": [
-        35,
+        20,
     ],
     "offset": [
-        128,
+        64,
     ],
 }
 
@@ -56,8 +56,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        print(cur_function)
-        # subprocess.call(cur_function, shell=True)
+        # print(cur_function)
+        subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)
