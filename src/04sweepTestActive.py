@@ -7,11 +7,11 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "TestStillwork",
+        "TestDebug23",
     ],
     "learningrate": [0.01],
-    "seed": [0,],
-    "cost_function": ["uncertainty_cost", "random_cost"],
+    "seed": [x for x in range(3)],
+    "cost_function": ["uncertainty_cost",],
     "add_ratio": [.1,],
     "batch-size": [128],
     "scale": [
@@ -21,16 +21,16 @@ params_to_vary = {
         "lno_halfHour",
     ],
     "poolname": [
-        "lno",
+        "lno_human",
     ],
     "epochs": [
-        2,
+        50,
     ],
     "image-size": [
         128,
     ],
     "add_step": [
-        2,
+        20,
     ],
     "offset": [
         128,
@@ -49,7 +49,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:15:00",
+        time="0-02:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

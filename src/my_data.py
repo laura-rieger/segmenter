@@ -1,8 +1,12 @@
-from cmath import phase
 import numpy as np
+import torch
+import pickle as pkl
 import os
 from os.path import join as oj
-from skimage import data, io, filters
+from skimage import io
+from PIL import Image
+from torch.utils.data import  TensorDataset
+
 
 def make_check_folder(intermittent_path, id):
     if not os.path.exists(intermittent_path):
@@ -10,13 +14,61 @@ def make_check_folder(intermittent_path, id):
     if not os.path.exists(oj(intermittent_path, id)):
         os.makedirs(oj(intermittent_path, id))
         os.makedirs(oj(intermittent_path, id, "images"))
+
+        os.makedirs(oj(intermittent_path, id, "predictions"))
         os.makedirs(oj(intermittent_path, id, "model"))
     return
 
-def save_progress(net, image_idxs, images, folder_path, id, args):
-    make_check_folder(folder_path, id)
 
-    pass
+def load_annotated_imgs(data_path):
+    # assumes that there are two folders, predictions and images
+    images_folder = oj(data_path, "images")
+    predictions_folder = oj(data_path, "predictions")
+    assert len(os.listdir(images_folder)) == len(os.listdir(predictions_folder))
+    images = []
+    predictions = []
+    for file_name in os.listdir(images_folder):
+        images.append(io.imread(oj(images_folder, file_name)))
+        predictions.append(io.imread(oj(predictions_folder, file_name)))
+    return_dataset = TensorDataset(
+        torch.Tensor(np.asarray(images)[:, None]), torch.Tensor(np.asarray(predictions))
+    )
+    return return_dataset
+
+
+def save_progress(net, image_idxs, images, folder_path, id, args, device, results, class_dict):
+    cur_folder = oj(folder_path, id)
+    make_check_folder(folder_path, id)
+    torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
+    pkl.dump(image_idxs, open(oj(cur_folder, "image_idxs.pkl"), "wb"))
+
+    pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
+    pkl.dump(args, open(oj(cur_folder, "args.pkl"), "wb"))
+    pkl.dump(class_dict, open(oj(cur_folder, "class_dict.pkl"), "wb"))
+    net.eval()
+    with torch.no_grad():
+        img_t = torch.Tensor(images).to(device)
+        predictions = (
+            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(np.float32)
+        )
+        predictions_classes = np.zeros_like(predictions)
+        for key, val in class_dict.items():
+            predictions_classes[predictions == key] = val
+
+    for i in range(len(images)):
+        im = Image.fromarray(images[i, 0])
+        im.save(
+            oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"),
+        )
+        im = Image.fromarray(
+            predictions[
+                i,
+            ]
+        )
+        im.save(
+            oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"),
+        )
+    return
 
 
 def load_full(data_path):
@@ -39,8 +91,38 @@ def load_data(data_path):
     return np.swapaxes(all_arr, 0, 1)
 
 
+def load_pool_data(data_path):
+
+    files = os.listdir(data_path)
+    file_name = files[0]
+    im = io.imread(oj(data_path, file_name))
+    if im.shape[2] == 3:
+        im = np.swapaxes(im, 0, 2)
+    imgs = np.vstack(
+        [
+            im[:, :1024, :1024],
+            im[:, :1024, 1024:],
+            im[:, 1024:, 1024:],
+            im[:, 1024:, :1024],
+        ]
+    )
+
+    my_imgs = np.asarray(imgs)
+
+    # assume that first is x, second y
+    my_imgs = my_imgs.astype(np.float)
+    # print(my_data[0].dtype)
+    my_imgs /= my_imgs.max()
+    if len(my_imgs.shape) < 4:
+        my_imgs = my_imgs[:, None]  # unet expects 4d
+
+    return my_imgs
+
+
 def load_layer_data(data_path):
     files = os.listdir(data_path)
+    if len(files) < 2:
+        return load_pool_data(data_path)
     my_data = []
     for file_name in files:  # careful: currently depends on order of files
 
@@ -67,20 +149,22 @@ def load_layer_data(data_path):
     if len(my_data[0].shape) < 4:
 
         my_data[0] = my_data[0][:, None]  # unet expects 4d
-    my_data[1], num_classes = make_classes(my_data[1])
-    return my_data[0], my_data[1], num_classes
+    my_data[1], num_classes, class_dict = make_classes(my_data[1])
+    return my_data[0], my_data[1], num_classes, class_dict
 
 
 def make_classes(y):
     y_all = np.zeros_like(y)
     class_vals = np.unique(y)
+    # print(class_vals)
     class_vals = class_vals[class_vals != 0]  # unmarked pixels do not count in classes
     num_classes = len(class_vals)
     y_all[y == 0] = 255
     my_channels = np.argsort(class_vals)
+    class_dict = {i: class_vals[my_channels[i]] for i in range(num_classes)}
     for i in range(num_classes):
         y_all[np.where(y == class_vals[my_channels[i]])] = i
-    return y_all, num_classes
+    return y_all, num_classes, class_dict
 
 
 def make_dataset(
@@ -105,13 +189,42 @@ def make_dataset(
 
                 # here is where you need to
                 x_list.append(
-                    x[idx, :, cur_x : cur_x + img_size, cur_y : cur_y + img_size]
+                    x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
                 y_list.append(
-                    y[idx][cur_x : cur_x + img_size, cur_y : cur_y + img_size]
+                    y[idx][cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
                 cur_y += offset
             cur_x += offset
     x_return = np.asarray(x_list).astype(np.float)
 
     return x_return, np.asarray(y_list)
+
+
+def make_dataset_single(
+    x,
+    img_size=25,
+    offset=20,
+):
+
+    x_list = []
+    img_width = x.shape[-1]
+
+    for idx in range(len(x)):
+        # for idx in range(1):
+
+        cur_x, cur_y = 0, 0
+        while cur_x <= img_width - img_size:
+            cur_y = 0
+            while cur_y <= img_width - img_size:
+
+                # here is where you need to
+                x_list.append(
+                    x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
+                )
+
+                cur_y += offset
+            cur_x += offset
+    x_return = np.asarray(x_list).astype(np.float)
+
+    return (x_return,)

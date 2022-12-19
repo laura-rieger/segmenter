@@ -7,20 +7,20 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNOSweepLong3",
+        "LNO_Scanity",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(3)],
-    "cost_function": ["Random"],
+    "cost_function": ["random_cost"],
     "add_ratio": [0.0],
     "batch-size": [128],
     "scale": [
         0.5,
     ],
     "foldername": [
-        "lno",
+        "lno_halfHour",
     ],
-    "epochs": [20],
+    "epochs": [50],
     "image-size": [
         128,
     ],
@@ -44,7 +44,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:15:00",
+        time="0-01:00:30",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

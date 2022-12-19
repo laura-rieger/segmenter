@@ -12,7 +12,7 @@ params_to_vary = {
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
     "cost_function": [
-        "Mean",
+        "random_cost",
     ],
     "add_ratio": [
         0.0,

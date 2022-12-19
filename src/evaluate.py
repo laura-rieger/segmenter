@@ -1,9 +1,9 @@
-from json import load
+
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
-from utils.dice_score import multiclass_dice_coeff, dice_coeff
+from utils.dice_score import multiclass_dice_coeff
 
 
 def random_cost(net, device, loader, n_choose=-1):
@@ -13,12 +13,12 @@ def random_cost(net, device, loader, n_choose=-1):
     return idxs[-n_choose:]
 
 
-def std_cost_function(net, device, loader, n_choose=-1):
+def uncertainty_cost(net, device, loader, n_choose=-1):
 
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
     with torch.no_grad():
-        for i, (image, _) in tqdm(
+        for i, image in tqdm(
             enumerate(loader),
             total=int(len(loader.dataset) / loader.batch_size),
             desc="AQ",
@@ -26,7 +26,7 @@ def std_cost_function(net, device, loader, n_choose=-1):
             leave=False,
         ):  # we only use the images, not the labels
 
-            image = image.to(device)
+            image = image[0].to(device)
 
             output = (
                 F.softmax(net.forward(image), dim=1)
@@ -38,12 +38,13 @@ def std_cost_function(net, device, loader, n_choose=-1):
             )
 
             std_arr[
-                i * loader.batch_size : i * loader.batch_size + len(output)
+                i * loader.batch_size: i * loader.batch_size + len(output)
             ] = output
 
     if n_choose == -1:
         return np.argsort(std_arr)
     else:
+        # xxx i think this is wrong
         return np.argsort(std_arr)[:n_choose]
 
 
