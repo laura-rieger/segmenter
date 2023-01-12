@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "2023LNOAquisition",
+        "RandomVsUncertainty",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(3)],
@@ -31,7 +31,7 @@ params_to_vary = {
     ],
 
     "offset": [
-        128,
+        64,
     ],
 }
 

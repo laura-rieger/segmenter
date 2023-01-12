@@ -119,6 +119,30 @@ def load_pool_data(data_path):
     return my_imgs
 
 
+# function like load_pool_data but only for a single file0
+def load_single_file(data_path):
+
+    file_name = os.listdir(data_path)[0]
+    print(file_name)
+    im = io.imread(oj(data_path, file_name))
+    print(im.shape)
+
+    imgs = np.vstack(
+        [
+            im[ None, :1024, :1024],
+            im[ None,  :1024, 1024:],
+            im[ None,  1024:, 1024:],
+            im[ None,  1024:, :1024],
+        ]
+    )
+    my_imgs = np.asarray(imgs)
+    my_imgs = my_imgs.astype(np.float)
+
+    my_imgs /= my_imgs.max()
+
+    return my_imgs
+
+
 def load_layer_data(data_path):
     files = os.listdir(data_path)
     if len(files) < 2:
