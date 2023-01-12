@@ -7,12 +7,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNO_Scanity",
+        "TestDebug23",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(3)],
-    "cost_function": ["random_cost"],
-    "add_ratio": [0.0],
+    "cost_function": ["uncertainty_cost",],
+    "add_ratio": [.1,],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -20,7 +20,12 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [50],
+    "poolname": [
+        "lno_human",
+    ],
+    "epochs": [
+        50,
+    ],
     "image-size": [
         128,
     ],
@@ -28,7 +33,7 @@ params_to_vary = {
         20,
     ],
     "offset": [
-        64,
+        128,
     ],
 }
 
@@ -44,7 +49,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-01:00:30",
+        time="0-02:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
@@ -56,8 +61,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        # print(cur_function)
-        subprocess.call(cur_function, shell=True)
+        print(cur_function)
+        # subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)
