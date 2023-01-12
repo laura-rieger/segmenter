@@ -1,7 +1,7 @@
 
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+# from tqdm import tqdm
 import numpy as np
 from utils.dice_score import multiclass_dice_coeff
 
@@ -18,13 +18,7 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
     with torch.no_grad():
-        for i, image in tqdm(
-            enumerate(loader),
-            total=int(len(loader.dataset) / loader.batch_size),
-            desc="AQ",
-            unit="batch",
-            leave=False,
-        ):  # we only use the images, not the labels
+        for i, image in enumerate(loader):  # we only use the images, not the labels
 
             image = image[0].to(device)
 
@@ -54,13 +48,7 @@ def evaluate(net, dataloader, device, num_classes):
     dice_score = 0
 
     # iterate over the validation set
-    for (image, mask_true) in tqdm(
-        dataloader,
-        total=num_val_batches,
-        desc="Validation round",
-        unit="batch",
-        leave=False,
-    ):
+    for (image, mask_true) in dataloader:
         # image, mask_true = batch['image'], batch['mask']
         # move images and labels to correct device and type
         image = image.to(device=device, dtype=torch.float32)

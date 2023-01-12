@@ -13,7 +13,7 @@ import sys
 from torch import optim
 import pickle as pkl
 from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
-from tqdm import tqdm
+# from tqdm import tqdm
 import numpy as np
 from torch.nn import functional as F
 
@@ -27,18 +27,18 @@ import evaluate
 #     std_cost_function,
 # )
 from unet import UNet
-# import wandb
+import wandb
 
 
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
-# wandb.init(project="VoxelSegmentWorking")
+wandb.init(project="VoxelSegments")
 
 results = {}
 np.random.seed()
 file_name = "".join([str(np.random.choice(10)) for x in range(10)])
 results["file_name"] = file_name
-# wandb.config["file_name"] = file_name
+wandb.config["file_name"] = file_name
 
 
 def train(
@@ -50,7 +50,7 @@ def train(
     for (
         images,
         true_masks,
-    ) in tqdm(train_loader):
+    ) in train_loader:
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [2, ],)
             true_masks = torch.flip(true_masks, [1, ],)
@@ -104,7 +104,6 @@ def train_net(device, args):
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
     init_train_idxs = all_train_idxs
-    init_train_idxs = all_train_idxs
     # pool_idxs = all_train_idxs[np.maximum(1, int(init_train_ratio * n_train)) :]
 
     train_set = TensorDataset(
@@ -150,7 +149,7 @@ def train_net(device, args):
 
         pool_set = TensorDataset(torch.Tensor(x_pool_all))
     else:
-        x_pool, y_pool, _ = my_data.load_layer_data(
+        x_pool, y_pool, _, _ = my_data.load_layer_data(
             oj(config["DATASET"]["data_path"], args.poolname)
         )
 
@@ -183,10 +182,8 @@ def train_net(device, args):
         n_channels=1, n_classes=results["num_classes"], bilinear=args.bilinear
     ).to(device=device)
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    optimizer = optim.RMSprop(
-        net.parameters(), lr=args.lr, weight_decay=0, momentum=0.0
-    )
-    optimizer = optim.Adamax(
+  
+    optimizer = optim.Adam(
         net.parameters(),
     )
 
@@ -196,7 +193,7 @@ def train_net(device, args):
     # 5. Begin training
     best_val_score = 0
     delta = 0.0001
-    patience = args.epochs  # no early stopping
+    patience = 3
     cur_patience = 0
     best_weights = None
     for epoch in range(1, args.epochs + 1):
@@ -213,110 +210,104 @@ def train_net(device, args):
 
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
+        print(val_score)
 
-        # if the dataset is the roughly annotated one, we just train until the end (those are annotated with hour/Hour)
-        if val_score > best_val_score + delta or "our" in args.foldername:
+        if val_score > best_val_score:
 
             best_val_score = val_score
             best_weights = net.state_dict()
             cur_patience = 0
         else:
             cur_patience += 1
-        if (
-            epoch % args.add_step == 0
-            and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio
-        ):
-            # old_num_train = len(train_loader.dataset)
-            cur_patience = 0
+        
+        if cur_patience > patience or epoch == args.epochs:
+            print("Ran out of patience, ")
 
-            add_ids = cost_function(net, device, pool_loader, n_choose=8)
-            if is_human_annotation: 
-                my_data.save_progress(net,
-                                      [add_ids, ],
-                                      x_pool_all[add_ids],
-                                      config["PATHS"]["progress_results"],
-                                      file_name,
-                                      args, device, results, class_dict)
-                print(file_name)
-                sys.exit()
+            if (len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
+                cur_patience = 0
+                add_ids = cost_function(net, device, pool_loader, n_choose=8)
+                print("Added new to dataset:")
+
+                if is_human_annotation:
+                    my_data.save_progress(net,
+                                          [add_ids, ],
+                                          x_pool_all[add_ids],
+                                          config["PATHS"]["progress_results"],
+                                          file_name,
+                                          args, device, results, class_dict)
+                    print(file_name)
+                    sys.exit()
+
+                else:
+                    add_set = TensorDataset(
+                        *[
+                            torch.Tensor(x_pool_all[add_ids]),
+                            torch.Tensor(y_pool_all[add_ids]),
+                        ]
+                    )
+                    newTrainSet = ConcatDataset([train_loader.dataset, add_set])
+                    train_loader = DataLoader(newTrainSet, shuffle=True, **loader_args)
+                    # delete from pool
+                    x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
+                    if is_human_annotation:
+                        pool_set = TensorDataset(*[
+                            torch.Tensor(x_pool_all),
+                        ])
+                    if not is_human_annotation:
+                        y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
+                        pool_set = TensorDataset(*[torch.Tensor(x_pool_all),
+                                                  torch.Tensor(y_pool_all), ])
+
+                    pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
+                    print("Added {} samples to the training set".format(len(add_ids)))
 
             else:
-                add_set = TensorDataset(
-                    *[
-                        torch.Tensor(x_pool_all[add_ids]),
-                        torch.Tensor(y_pool_all[add_ids]),
-                    ]
-                )
-            newTrainSet = ConcatDataset([train_loader.dataset, add_set])
-            train_loader = DataLoader(newTrainSet, shuffle=True, **loader_args)
-            # delete from pool
-            x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
-            if is_human_annotation:
-                pool_set = TensorDataset(*[
-                    torch.Tensor(x_pool_all),
-                ])
-            if not is_human_annotation:
-                y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
-                pool_set = TensorDataset(*[torch.Tensor(x_pool_all),
-                        torch.Tensor(y_pool_all), ])
+                # do a final evaluation
 
-            pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
-
-            # wandb.log(
-            #     {
-            #         "dice_score": val_score,
-            #         "num_train": old_num_train,
-            #         "train_loss": train_loss,
-            #     }
-            # )
-
-            if cur_patience > patience:
-
-                break
-
-    # do a final evaluation
-    net.load_state_dict(best_weights)
-    # load evaluation data
-    if "lno" in args.foldername:
-        x, y, num_classes = my_data.load_layer_data(
-            oj(config["DATASET"]["data_path"], "lno")
-        )
-        x, y = x[:-4], y[:-4]  # just don't touch the last four
-        all_idxs = np.arange(len(x))
-        np.random.seed(0)
-        np.random.shuffle(all_idxs)
-        n_val = np.maximum(int(len(x) * args.val / 100), 1)
-        val_idxs = all_idxs[-n_val:]
-        val_set = TensorDataset(
-            *[
-                torch.Tensor(input)
-                for input in my_data.make_dataset(
-                    x[val_idxs],
-                    y[val_idxs],
-                    img_size=args.image_size,
-                    offset=args.image_size,
-                )
-            ]
-        )
-        val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
-
-        final_dice_score = evaluate.evaluate(net, val_loader, device, num_classes)
-        if type(final_dice_score) == torch.Tensor:
-            results["final_dice_score"] = final_dice_score.item()
-        else:
-            results["final_dice_score"] = final_dice_score
-        # wandb.log(
-        #     {
-        #         "final_dice_score": results["final_dice_score"],
-        #     }
-        # )
-
-    pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
-
-    torch.save(best_weights, oj(save_path, file_name + ".pt"))
-    # wandb.alert(title="Run is done", text="Run is done")
+                # load evaluation data
+                if "lno" in args.foldername:
+                    x, y, num_classes, _ = my_data.load_layer_data(
+                        oj(config["DATASET"]["data_path"], "lno")
+                    )
+                    x, y = x[:-4], y[:-4]  # just don't touch the last four
+                    all_idxs = np.arange(len(x))
+                    np.random.seed(0)
+                    np.random.shuffle(all_idxs)
+                    n_val = np.maximum(int(len(x) * args.val / 100), 1)
+                    val_idxs = all_idxs[-n_val:]
+                    val_set = TensorDataset(
+                        *[
+                            torch.Tensor(input)
+                            for input in my_data.make_dataset(
+                                x[val_idxs],
+                                y[val_idxs],
+                                img_size=args.image_size,
+                                offset=args.image_size,
+                            )
+                        ]
+                    )
+                    val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
+                    net.load_state_dict(best_weights)
+                    final_dice_score = evaluate.evaluate(net, val_loader, device, num_classes)
+                    if type(final_dice_score) == torch.Tensor:
+                        results["final_dice_score"] = final_dice_score.item()
+                    else:
+                        results["final_dice_score"] = final_dice_score
 
 
+                    wandb.log(
+                        {
+                            "final_dice_score": results["final_dice_score"],
+                        }
+                    )
+                print(os.path.join(save_path, file_name + ".pkl"))
+                pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
+
+                torch.save(best_weights, oj(save_path, file_name + ".pt"))
+                
+                wandb.alert(title="Run is done", text="Run is done")
+                sys.exit()
+         
 def get_args():
     parser = argparse.ArgumentParser(description="Train the UNet on images and target masks")
     parser.add_argument("--epochs", "-e", type=int, default=2)
@@ -334,7 +325,7 @@ def get_args():
     parser.add_argument("--scale", "-s", type=float, default=0.5, help="Downscaling factor of the images",)
     parser.add_argument("--validation", "-v", dest="val", type=int, default=10, help="Val percentage (0-100)", )
     parser.add_argument("--amp", action="store_true", default=False, help="Use mixed precision")
-    parser.add_argument("--add_step", type=int, default=1)
+    # parser.add_argument("--add_step", type=int, default=1)
     # parser.add_argument("--human_annotation", action="store_true", default=True, help="Expect unannotated dataset")
     parser.add_argument("--bilinear", action="store_true", default=False, help="Use bilinear upsampling")
     parser.add_argument("--classes", "-c", type=int, default=6, help="Number of classes")
@@ -346,7 +337,7 @@ if __name__ == "__main__":
     for arg in vars(args):
 
         results[str(arg)] = getattr(args, arg)
-        # wandb.config[str(arg)] = getattr(args, arg)
+        wandb.config[str(arg)] = getattr(args, arg)
     config = configparser.ConfigParser()
     config.read("../config.ini")
     save_path = config["PATHS"]["model_path"]

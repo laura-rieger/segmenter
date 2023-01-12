@@ -1,3 +1,4 @@
+
 import itertools
 import os
 
@@ -7,12 +8,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "TestStillwork",
+        "Comparison",
     ],
     "learningrate": [0.01],
-    "seed": [0,],
-    "cost_function": ["uncertainty_cost", "random_cost"],
-    "add_ratio": [.1,],
+    "seed": [x for x in range(3)],
+    "cost_function": ["uncertainty_cost","random"],
+    "add_ratio": [.05, ],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -21,17 +22,17 @@ params_to_vary = {
         "lno_halfHour",
     ],
     "poolname": [
-        "lno",
+        "lno", # "lno_human",
     ],
     "epochs": [
-        2,
+        1000,
     ],
     "image-size": [
         128,
     ],
-    "add_step": [
-        2,
-    ],
+    # "add_step": [
+    #     50,
+    # ],
     "offset": [
         128,
     ],
@@ -45,16 +46,16 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL",
+        mail_type="FAIL,END",
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:15:00",
+        time="0-02:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_improve.py "
 
     for j, key in enumerate(keys):
 
