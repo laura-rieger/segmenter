@@ -1,18 +1,21 @@
 import itertools
-import os
-
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "sanitytestdoesanythinghappen",
+        "seedfixed",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
-    "cost_function": ["uncertainty_cost",],
-    "add_ratio": [.05, ],
+    "cost_function": [
+         'random_cost', "uncertainty_cost", 
+    ],
+    "add_ratio": [
+         0.1, 
+    ],
+    'poolname' : ['lno'],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -20,20 +23,13 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "poolname": [
-        "lno_human", # "lno_human",
-    ],
-    "epochs": [
-        1000,
-    ],
+    "epochs": [5],
     "image-size": [
         128,
     ],
-    # "add_step": [
-    #     50,
-    # ],
+
     "offset": [
-        128,
+        64,
     ],
 }
 
@@ -45,16 +41,16 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL,END",
+        mail_type="FAIL",
         partition="sm3090",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-01:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train_improve.py "
+    cur_function = "python train.py "
 
     for j, key in enumerate(keys):
 

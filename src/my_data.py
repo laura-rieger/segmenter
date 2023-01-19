@@ -123,9 +123,9 @@ def load_pool_data(data_path):
 def load_single_file(data_path):
 
     file_name = os.listdir(data_path)[0]
-    print(file_name)
+
     im = io.imread(oj(data_path, file_name))
-    print(im.shape)
+
 
     imgs = np.vstack(
         [
@@ -138,7 +138,6 @@ def load_single_file(data_path):
     my_imgs = np.asarray(imgs)
     my_imgs = my_imgs.astype(np.float)
 
-    my_imgs /= my_imgs.max()
 
     return my_imgs
 
@@ -163,6 +162,7 @@ def load_layer_data(data_path):
         )
 
         my_imgs = np.asarray(imgs)
+        
 
         my_data.append(my_imgs)
 

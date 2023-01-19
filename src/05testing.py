@@ -1,18 +1,21 @@
 import itertools
-import os
-
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "LNO_Scanity",
+        "seedfixed",
     ],
     "learningrate": [0.01],
-    "seed": [x for x in range(3)],
-    "cost_function": ["random_cost"],
-    "add_ratio": [0.0],
+    "seed": [0 for x in range(2)],
+    "cost_function": [
+         'random_cost', "uncertainty_cost", 
+    ],
+    "add_ratio": [
+         0.0, 
+    ],
+    'poolname' : ['lno'],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -20,13 +23,11 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [50],
+    "epochs": [5],
     "image-size": [
         128,
     ],
-    "add_step": [
-        20,
-    ],
+
     "offset": [
         64,
     ],
@@ -44,7 +45,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-01:00:30",
+        time="0-01:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
@@ -56,8 +57,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        # print(cur_function)
-        subprocess.call(cur_function, shell=True)
+        print(cur_function)
+        # subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)

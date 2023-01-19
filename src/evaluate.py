@@ -42,6 +42,21 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
         return np.argsort(std_arr)[:n_choose]
 
 
+#make a new function that takes in net, data loader, device and criterion and returns the loss
+def evaluate_loss(net, device, loader, criterion,):
+    tot_loss = 0
+    net.eval()
+    with torch.no_grad():
+        for i, (image, mask) in enumerate(loader):  
+
+            image = image.to(device, dtype=torch.float32)
+            mask = mask.to(device, dtype=torch.long)
+
+            output = net.forward(image)
+            loss = criterion(output, mask)
+            tot_loss += loss.item()
+    return tot_loss / len(loader.dataset)
+
 def evaluate(net, dataloader, device, num_classes):
     net.eval()
     num_val_batches = len(dataloader)
@@ -65,7 +80,7 @@ def evaluate(net, dataloader, device, num_classes):
                 .permute(0, 3, 1, 2)
                 .float()
             )
-            # compute the Dice score, ignoring background
+            # compute the Dice score, which is a metric for segmentation
             dice_score += multiclass_dice_coeff(
                 mask_pred[:, :, ...],
                 mask_true,

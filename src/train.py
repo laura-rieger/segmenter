@@ -46,11 +46,12 @@ def train(
 ):
     net.train()
     epoch_loss = 0
+    num_batches = 32
 
-    for (
+    for i,(
         images,
         true_masks,
-    ) in train_loader:
+    ) in enumerate(train_loader):
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [2, ],)
             true_masks = torch.flip(true_masks, [1, ],)
@@ -79,8 +80,10 @@ def train(
                 grad_scaler.update()
 
                 epoch_loss += loss.item()
+        if i >= num_batches:
+            break
         
-    return epoch_loss / len(train_loader)
+    return epoch_loss / (num_batches * train_loader.batch_size) # len(train_loader)
 
 
 def train_net(device, args):
@@ -117,6 +120,7 @@ def train_net(device, args):
             )
         ]
     )
+
     val_set = TensorDataset(
         *[
             torch.Tensor(input)
@@ -128,6 +132,27 @@ def train_net(device, args):
             )
         ]
     )
+# debug! remove this later
+# load the validation set from the fully annotated lno set to see what is going on
+    # x_debug, y_debug, num_classes_debug, class_dict_debug = my_data.load_layer_data(oj(config["DATASET"]["data_path"], 'lno')
+    #     )
+    # all_idx_debug = np.arange(len(x_debug))
+    # np.random.seed(0)
+    # np.random.shuffle(all_idx_debug)
+    # n_val_debug = np.maximum(int(len(x_debug) * args.val / 100), 1)
+
+    # val_idxs_debug = all_idxs[-n_val_debug:]
+    # val_set = TensorDataset(
+    #     *[
+    #         torch.Tensor(input)
+    #         for input in my_data.make_dataset(
+    #             x_debug[val_idxs_debug],
+    #             y_debug[val_idxs_debug],
+    #             img_size=args.image_size,
+    #             offset=args.image_size,
+    #         )
+    #     ]
+    # )
     # num_train = len(train_set)
     is_human_annotation = len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1
 
@@ -171,13 +196,19 @@ def train_net(device, args):
 
     # 3. Create data loaders
     loader_args = dict(batch_size=args.batch_size, num_workers=num_workers, pin_memory=True)
+    weights = [1 for x in range(len(train_set))]
+
+    # Create a WeightedRandomSampler using the weights
+    torch.manual_seed(args.seed)
+    sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
+
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_loader.dataset)
 
     # old_num_train = len(train_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-
+    torch.manual_seed(args.seed)
     net = UNet(
         n_channels=1, n_classes=results["num_classes"], bilinear=args.bilinear
     ).to(device=device)
@@ -191,9 +222,9 @@ def train_net(device, args):
     criterion = nn.CrossEntropyLoss(ignore_index=255)
 
     # 5. Begin training
-    best_val_score = 0
-    delta = 0.0001
-    patience = 3
+    best_val_score = 10000
+    # delta = 0.0001
+    patience = 2
     cur_patience = 0
     best_weights = None
     for epoch in range(1, args.epochs + 1):
@@ -208,11 +239,14 @@ def train_net(device, args):
             args.amp,
         )
 
-        val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
+        # val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
+        val_score = evaluate.evaluate_loss(net, device, val_loader, criterion)
         results["val_scores"].append(val_score)
         print(val_score)
-
-        if val_score > best_val_score:
+        # log the validation loss to wandb
+        wandb.log({"val_score": val_score})
+ 
+        if val_score < best_val_score:
 
             best_val_score = val_score
             best_weights = net.state_dict()
@@ -246,17 +280,16 @@ def train_net(device, args):
                         ]
                     )
                     newTrainSet = ConcatDataset([train_loader.dataset, add_set])
-                    train_loader = DataLoader(newTrainSet, shuffle=True, **loader_args)
+                    # ad hoc weigh the new samples ten times as much
+                    new_weights = [1 for x in range(len(train_loader.dataset))] + [5 for x in range(len(add_set))]
+                    new_sampler = torch.utils.data.WeightedRandomSampler(new_weights, len(new_weights))
+                    train_loader = DataLoader(newTrainSet, sampler=new_sampler, **loader_args)
                     # delete from pool
                     x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
-                    if is_human_annotation:
-                        pool_set = TensorDataset(*[
-                            torch.Tensor(x_pool_all),
-                        ])
-                    if not is_human_annotation:
-                        y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
-                        pool_set = TensorDataset(*[torch.Tensor(x_pool_all),
-                                                  torch.Tensor(y_pool_all), ])
+     
+                    y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
+                    pool_set = TensorDataset(*[torch.Tensor(x_pool_all),
+                                            torch.Tensor(y_pool_all), ])
 
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     print("Added {} samples to the training set".format(len(add_ids)))
@@ -294,7 +327,6 @@ def train_net(device, args):
                     else:
                         results["final_dice_score"] = final_dice_score
 
-
                     wandb.log(
                         {
                             "final_dice_score": results["final_dice_score"],
@@ -302,8 +334,8 @@ def train_net(device, args):
                     )
                 print(os.path.join(save_path, file_name + ".pkl"))
                 pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
-
-                torch.save(best_weights, oj(save_path, file_name + ".pt"))
+                # xxx weights not saved in the end to save space for now
+                # torch.save(best_weights, oj(save_path, file_name + ".pt"))
                 
                 wandb.alert(title="Run is done", text="Run is done")
                 sys.exit()

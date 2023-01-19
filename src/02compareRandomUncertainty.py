@@ -1,21 +1,19 @@
 import itertools
-import os
-
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "RandomVsUncertainty",
+        "RandomUncertainty_SamplingReverse",
     ],
     "learningrate": [0.01],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(1)],
     "cost_function": [
-        "random_cost", "uncertainty_cost"
+         "uncertainty_cost",
     ],
     "add_ratio": [
-        0.05, 0.1, 
+         0.1, 
     ],
     'poolname' : ['lno'],
     "batch-size": [128],

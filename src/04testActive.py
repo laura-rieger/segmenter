@@ -7,12 +7,17 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "TestDebug23",
+        "Sanitytest",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(3)],
-    "cost_function": ["uncertainty_cost",],
-    "add_ratio": [.1,],
+    "cost_function": [
+        "uncertainty_cost", 'random_cost'
+    ],
+    "add_ratio": [
+         0.0, 
+    ],
+    'poolname' : ['lno_human'],
     "batch-size": [128],
     "scale": [
         0.5,
@@ -20,20 +25,13 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "poolname": [
-        "lno_human",
-    ],
-    "epochs": [
-        50,
-    ],
+    "epochs": [150],
     "image-size": [
         128,
     ],
-    "add_step": [
-        20,
-    ],
+
     "offset": [
-        128,
+        64,
     ],
 }
 
@@ -49,7 +47,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-01:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

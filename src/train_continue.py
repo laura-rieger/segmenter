@@ -44,13 +44,14 @@ file_name = -1
 def train(
     net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, amp
 ):
+    num_batches = 64
     net.train()
     epoch_loss = 0
 
-    for (
+    for i, (
         images,
         true_masks,
-    ) in train_loader:
+    ) in enumerate(train_loader):
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [2, ],)
             true_masks = torch.flip(true_masks, [1, ],)
@@ -79,7 +80,9 @@ def train(
                 grad_scaler.update()
 
                 epoch_loss += loss.item()
-    return epoch_loss / len(train_loader)
+        if i >= num_batches:
+            break
+    return epoch_loss / (num_batches*train_loader.batch_size)
 
 
 def train_net(device, args, run_id):
@@ -117,6 +120,7 @@ def train_net(device, args, run_id):
     )
     # old_num_train = len(train_set)
     annotated_set = my_data.load_annotated_imgs(oj(config["PATHS"]["progress_results"], run_id))
+    weights = [1 for _ in range(len(train_set))] + [10 for _ in range(len(annotated_set))]
 
     train_set = ConcatDataset([train_set, annotated_set])
     val_set = TensorDataset(
@@ -157,7 +161,12 @@ def train_net(device, args, run_id):
 
     # 3. Create data loaders
     loader_args = dict(batch_size=args.batch_size, num_workers=num_workers, pin_memory=True)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+
+    
+
+
+    sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
+    train_loader = DataLoader(train_set, sampler = sampler, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_set) + len(annotated_set)
 
