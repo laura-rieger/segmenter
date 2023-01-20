@@ -8,9 +8,9 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineFullDataset",
+        "BaselineFullDatasetTest",
     ],
-    "learningrate": [0.01],
+    "learningrate": [0.01, 0.001],
     "seed": [x for x in range(3)],
     "cost_function": ["uncertainty_cost",],
     "add_ratio": [.0, ],
@@ -25,7 +25,7 @@ params_to_vary = {
         "lno", # "lno_human",
     ],
     "epochs": [
-        1000,
+        30,
     ],
     "image-size": [
         128,

@@ -38,8 +38,10 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
     if n_choose == -1:
         return np.argsort(std_arr)
     else:
-        # xxx i think this is wrong
-        return np.argsort(std_arr)[:n_choose]
+        # this doesn't make sense - 
+        num_total = len(loader.dataset)
+        offset_val = int(0.05*num_total) 
+        return np.argsort(std_arr)[-n_choose-offset_val:-offset_val]
 
 
 #make a new function that takes in net, data loader, device and criterion and returns the loss

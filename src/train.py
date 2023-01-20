@@ -199,10 +199,10 @@ def train_net(device, args):
     weights = [1 for x in range(len(train_set))]
 
     # Create a WeightedRandomSampler using the weights
-    torch.manual_seed(args.seed)
+    # torch.manual_seed(args.seed)
     sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
 
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+    train_loader = DataLoader(train_set, sampler = sampler, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_loader.dataset)
 
@@ -215,7 +215,7 @@ def train_net(device, args):
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
   
     optimizer = optim.Adam(
-        net.parameters(),
+        net.parameters(), lr = args.lr,
     )
 
     grad_scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
@@ -281,7 +281,7 @@ def train_net(device, args):
                     )
                     newTrainSet = ConcatDataset([train_loader.dataset, add_set])
                     # ad hoc weigh the new samples ten times as much
-                    new_weights = [1 for x in range(len(train_loader.dataset))] + [5 for x in range(len(add_set))]
+                    new_weights = [1 for x in range(len(train_loader.dataset))] + [10 for x in range(len(add_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler(new_weights, len(new_weights))
                     train_loader = DataLoader(newTrainSet, sampler=new_sampler, **loader_args)
                     # delete from pool
@@ -334,7 +334,7 @@ def train_net(device, args):
                     )
                 print(os.path.join(save_path, file_name + ".pkl"))
                 pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
-                # xxx weights not saved in the end to save space for now
+
                 # torch.save(best_weights, oj(save_path, file_name + ".pt"))
                 
                 wandb.alert(title="Run is done", text="Run is done")
@@ -348,7 +348,7 @@ def get_args():
     parser.add_argument("--add_ratio", type=float, default=0.5,)
     parser.add_argument("--foldername", type=str, default="lno_halfHour",)
     
-    parser.add_argument("--poolname", type=str, default="lno_human",)
+    parser.add_argument("--poolname", type=str, default="lno",)
     parser.add_argument("--experiment_name", "-g", type=str, default="",)
     parser.add_argument("--learningrate", "-l", type=float, default=1e-5, dest="lr",)
     parser.add_argument("--image-size", dest="image_size", type=int, default=128, )

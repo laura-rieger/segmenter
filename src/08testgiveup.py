@@ -5,25 +5,25 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "seedfixed",
+        "batchsize",
     ],
     "learningrate": [0.01],
     "seed": [x for x in range(1)],
     "cost_function": [
-         'random_cost', "uncertainty_cost", 
+         "uncertainty_cost", # 'random_cost', 
     ],
     "add_ratio": [
-         0.1, 
+         0.05, 
     ],
     'poolname' : ['lno'],
-    "batch-size": [128],
+    "batch-size": [128,],
     "scale": [
         0.5,
     ],
     "foldername": [
-        "lno_halfHour",
+        "lno_halfHour","lno_hour",
     ],
-    "epochs": [5],
+    "epochs": [500],
     "image-size": [
         128,
     ],
