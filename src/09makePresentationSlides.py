@@ -5,31 +5,34 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "seedfixed",
+        "TestPresentationLargeSample",
     ],
     "learningrate": [0.001],
-    "seed": [0 for x in range(2)],
+    "seed": [x for x in range(1)],
     "cost_function": [
-         'random_cost', "uncertainty_cost", 
-    ],
+         "uncertainty_cost",# "random_cost"
+    ], 
     "add_ratio": [
-         0.0, 
+           0.02,
     ],
     'poolname' : ['lno'],
-    "batch-size": [128],
+    "batch-size": [32],
     "scale": [
         0.5,
     ],
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [500],
+    "epochs": [250],
     "image-size": [
-        128,
+        256,
     ],
 
     "offset": [
-        64,
+        128,
+    ],
+    "export_results": [
+        1,
     ],
 }
 
@@ -45,7 +48,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-01:15:00",
+        time="0-00:30:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

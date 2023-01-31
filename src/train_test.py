@@ -28,18 +28,18 @@ import evaluate
 #     std_cost_function,
 # )
 from unet import UNet
-import wandb
+# import wandb
 
 
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
-wandb.init(project="VoxelSegments")
+# wandb.init(project="VoxelSegments")
 
 results = {}
 np.random.seed()
 file_name = "".join([str(np.random.choice(10)) for x in range(10)])
 results["file_name"] = file_name
-wandb.config["file_name"] = file_name
+# wandb.config["file_name"] = file_name
 
 
 def train(
@@ -136,31 +136,31 @@ def train_net(device, args):
             )
         ]
     )
-    if "lno" in args.foldername:
-        # load the fully annotated data to get the final evaluation on unseen "real" data
-        x_final, y_final, _, _ = my_data.load_layer_data(
-            oj(config["DATASET"]["data_path"], "lno")
-        )
+    # if "lno" in args.foldername:
+    #     # load the fully annotated data to get the final evaluation on unseen "real" data
+    #     x_final, y_final, _, _ = my_data.load_layer_data(
+    #         oj(config["DATASET"]["data_path"], "lno")
+    #     )
 
-        x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
-        x_final = (x_final - data_min) / (data_max - data_min)
-        all_idxs_final = np.arange(len(x_final))
-        np.random.seed(0)
-        np.random.shuffle(all_idxs_final)
-        n_val_final = np.maximum(int(len(x_final) * args.val / 100), 1)
-        val_idxs_final = all_idxs[-n_val_final:]
-        val_set_final = TensorDataset(
-            *[
-                torch.Tensor(input)
-                for input in my_data.make_dataset(
-                    x_final[val_idxs_final],
-                    y_final[val_idxs_final],
-                    img_size=args.image_size,
-                    offset=args.image_size,
-                )
-            ]
-        )
-        final_val_loader = DataLoader(val_set_final, shuffle=False, drop_last=True, **loader_args)
+    #     x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
+    #     x_final = (x_final - data_min) / (data_max - data_min)
+    #     all_idxs_final = np.arange(len(x_final))
+    #     np.random.seed(0)
+    #     np.random.shuffle(all_idxs_final)
+    #     n_val_final = np.maximum(int(len(x_final) * args.val / 100), 1)
+    #     val_idxs_final = all_idxs[-n_val_final:]
+    #     val_set_final = TensorDataset(
+    #         *[
+    #             torch.Tensor(input)
+    #             for input in my_data.make_dataset(
+    #                 x_final[val_idxs_final],
+    #                 y_final[val_idxs_final],
+    #                 img_size=args.image_size,
+    #                 offset=args.image_size,
+    #             )
+    #         ]
+    #     )
+    #     final_val_loader = DataLoader(val_set_final, shuffle=False, drop_last=True, **loader_args)
     # num_train = len(train_set)
     is_human_annotation = len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1
 
@@ -210,15 +210,16 @@ def train_net(device, args):
 
     # Create a WeightedRandomSampler using the weights
     torch.manual_seed(args.seed)
-    sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
+    # sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
 
-    train_loader = DataLoader(train_set, sampler=sampler, **loader_args)
+    # train_loader = DataLoader(train_set, sampler=sampler, **loader_args)
+    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_loader.dataset)
 
     # old_num_train = len(train_loader.dataset)
-    # val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-    val_loader = final_val_loader
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    # val_loader = final_val_loader
     torch.manual_seed(args.seed)
     net = UNet(
         n_channels=1, n_classes=results["num_classes"], bilinear=args.bilinear
@@ -260,8 +261,9 @@ def train_net(device, args):
         # val_score = evaluate.evaluate_loss(net, device, val_loader, criterion)
         results["val_scores"].append(val_score)
         print(val_score)
+        sys.exit()
         # log the validation loss to wandb
-        wandb.log({"val_score": val_score})
+        # wandb.log({"val_score": val_score})
 
         if val_score > best_val_score:
             print("New best validation score: " + str(val_score))
@@ -328,23 +330,23 @@ def train_net(device, args):
                 if "lno" in args.foldername:
 
                     net.load_state_dict(best_weights)
-                    final_dice_score = evaluate.evaluate(net, final_val_loader, device, num_classes)
+                    final_dice_score = evaluate.evaluate(net, val_loader, device, num_classes)
                     if type(final_dice_score) == torch.Tensor:
                         results["final_dice_score"] = final_dice_score.item()
                     else:
                         results["final_dice_score"] = final_dice_score
 
-                    wandb.log(
-                        {
-                            "final_dice_score": results["final_dice_score"],
-                        }
-                    )
+                    # wandb.log(
+                    #     {
+                    #         "final_dice_score": results["final_dice_score"],
+                    #     }
+                    # )
                 print(os.path.join(save_path, file_name + ".pkl"))
                 pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
                 torch.save(best_weights, oj(save_path, file_name + ".pt"))
 
-                wandb.alert(title="Run is done", text="Run is done")
+                # wandb.alert(title="Run is done", text="Run is done")
                 sys.exit()
 
         epoch += 1
@@ -379,7 +381,7 @@ if __name__ == "__main__":
     for arg in vars(args):
 
         results[str(arg)] = getattr(args, arg)
-        wandb.config[str(arg)] = getattr(args, arg)
+        # wandb.config[str(arg)] = getattr(args, arg)
     config = configparser.ConfigParser()
     config.read("../config.ini")
     save_path = config["PATHS"]["model_path"]

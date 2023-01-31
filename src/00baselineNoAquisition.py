@@ -8,18 +8,18 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineNoAquisition",
+        "RealValBaselineNoAquisition",
     ],
-    "learningrate": [0.01],
-    "seed": [x for x in range(3)],
-    "cost_function": ["uncertainty_cost",],
+    "learningrate": [0.001],
+    "seed": [x for x in range(5)],
+    "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128],
     "scale": [
         0.5,
     ],
     "foldername": [
-        "lno_halfHour",'lno_hour'
+        "lno_halfHour", 
     ],
     "poolname": [
         "lno", # "lno_human",
@@ -30,9 +30,7 @@ params_to_vary = {
     "image-size": [
         128,
     ],
-    # "add_step": [
-    #     50,
-    # ],
+
     "offset": [
         64,
     ],
@@ -45,7 +43,7 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL,END",
+        mail_type="FAIL",
         partition="sm3090",
         N=1,
         n=8,

@@ -5,31 +5,31 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "RandomUncertainty_SamplingReverse",
+        "12largeSamples",
     ],
-    "learningrate": [0.01],
-    "seed": [x for x in range(1)],
+    "learningrate": [0.001],
+    "seed": [x for x in range(3)],
     "cost_function": [
-         "uncertainty_cost",
-    ],
+         "uncertainty_cost",   "random_cost"
+    ], 
     "add_ratio": [
-         0.1, 
+           0.25,
     ],
     'poolname' : ['lno'],
-    "batch-size": [128],
+    "batch-size": [32],
     "scale": [
         0.5,
     ],
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [150],
+    "epochs": [250],
     "image-size": [
-        128,
+        256,
     ],
 
     "offset": [
-        64,
+        128,
     ],
 }
 
@@ -45,7 +45,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-01:15:00",
+        time="0-00:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

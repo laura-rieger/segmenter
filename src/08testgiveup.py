@@ -5,12 +5,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "batchsize",
+        "randomdiversity",
     ],
-    "learningrate": [0.01],
-    "seed": [x for x in range(1)],
+    "learningrate": [0.001],
+    "seed": [x for x in range(3)],
     "cost_function": [
-         "uncertainty_cost", # 'random_cost', 
+         "uncertainty_cost", "random",
     ],
     "add_ratio": [
          0.05, 
@@ -21,7 +21,7 @@ params_to_vary = {
         0.5,
     ],
     "foldername": [
-        "lno_halfHour","lno_hour",
+        "lno_halfHour",
     ],
     "epochs": [500],
     "image-size": [

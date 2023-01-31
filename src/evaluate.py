@@ -21,27 +21,42 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
         for i, image in enumerate(loader):  # we only use the images, not the labels
 
             image = image[0].to(device)
-
-            output = (
-                F.softmax(net.forward(image), dim=1)
-                .std(dim=1)
-                .mean(axis=(1, 2))
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            output = F.softmax(net.forward(image), dim=1)
+            entropy  = -torch.sum(output * torch.log(output), dim=1).mean(axis=(1,2)).detach().cpu().numpy()
+ 
+            # output = (
+            #     F.softmax(net.forward(image), dim=1)
+            #     .std(dim=1)
+            #     .mean(axis=(1, 2))
+            #     .detach()
+            #     .cpu()
+            #     .numpy()
+            # )
 
             std_arr[
                 i * loader.batch_size: i * loader.batch_size + len(output)
-            ] = output
+            ] = entropy
 
     if n_choose == -1:
         return np.argsort(std_arr)
     else:
+        return np.argsort(std_arr)[-n_choose:]
         # this doesn't make sense - 
         num_total = len(loader.dataset)
-        offset_val = int(0.05*num_total) 
-        return np.argsort(std_arr)[-n_choose-offset_val:-offset_val]
+        offset_range = 0.05
+        range = int(offset_range*num_total) 
+        add_val = int((1-offset_range)*num_total)
+        # randomly choose from the top 10% of the data
+        np.random.seed(0)
+        take_vals = np.random.choice(range, n_choose, replace=False)
+        sorted_arr = np.argsort(std_arr)
+        return np.take(sorted_arr, take_vals+add_val)
+
+        # offset_val = 0
+
+
+
+        # return np.argsort(std_arr)[-n_choose-offset_val:-offset_val]
 
 
 #make a new function that takes in net, data loader, device and criterion and returns the loss

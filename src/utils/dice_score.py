@@ -3,7 +3,7 @@ from torch import Tensor
 
 
 def dice_coeff(
-    input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon=1e-6
+    input: Tensor, target: Tensor, target_is_mask, reduce_batch_first: bool = False, epsilon=1e-6, 
 ):
     # Average of Dice coefficient for all batches, or for a single mask
     # assert input.size() == target.size()
@@ -14,7 +14,12 @@ def dice_coeff(
         )
 
     if input.dim() == 2 or reduce_batch_first:
-        inter = torch.dot(input.reshape(-1), target.reshape(-1))
+        input = input.reshape(-1)
+        target = target.reshape(-1)
+        target_is_mask = target_is_mask.reshape(-1)
+        input = input[target_is_mask]
+        target = target[target_is_mask]
+        inter = torch.dot(input, target)
         sets_sum = torch.sum(input) + torch.sum(target)
         if sets_sum.item() == 0:
             sets_sum = 2 * inter
@@ -24,7 +29,7 @@ def dice_coeff(
         # compute and average metric for each batch element
         dice = 0
         for i in range(input.shape[0]):
-            dice += dice_coeff(input[i, ...], target[i, ...])
+            dice += dice_coeff(input[i, ...], target[i, ...], target_is_mask[i])
         return dice / input.shape[0]
 
 
@@ -33,17 +38,19 @@ def multiclass_dice_coeff(
     target: Tensor,
     num_classes: int,
     reduce_batch_first: bool = False,
-    epsilon=1e-6,
+    epsilon=1e-6, 
 ):
     # Average of Dice coefficient for all classes
     # assert input.size() == target.size()
     dice = 0
+    mask_val = 255
     for channel in range(num_classes):
         dice += dice_coeff(
             input[:, channel, ...],
             (target == channel).float(),
-            reduce_batch_first,
-            epsilon,
+            target != mask_val,
+            reduce_batch_first=reduce_batch_first,
+            epsilon=epsilon,
         )
 
     return dice / input.shape[1]

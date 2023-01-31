@@ -15,6 +15,7 @@ def make_check_folder(intermittent_path, id):
         os.makedirs(oj(intermittent_path, id))
         os.makedirs(oj(intermittent_path, id, "images"))
 
+        os.makedirs(oj(intermittent_path, id, "human_annotated"))
         os.makedirs(oj(intermittent_path, id, "predictions"))
         os.makedirs(oj(intermittent_path, id, "model"))
     return
@@ -35,7 +36,44 @@ def load_annotated_imgs(data_path):
     )
     return return_dataset
 
+def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
+    cur_folder = oj(folder_path, str(id) ,   str(repetition_id))
+    make_check_folder(oj(folder_path,str(id)) ,  str(repetition_id))
+    num_classes = len(class_dict.values())
 
+    net.eval()
+    with torch.no_grad():
+        img_t = torch.Tensor(images).to(device)
+        predictions = (
+            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(np.float32)
+        )
+        predictions_classes = np.zeros_like(predictions)
+        for key, val in class_dict.items():
+            predictions_classes[predictions == key] = val
+
+    for i in range(len(images)):
+        im_input = Image.fromarray(images[i, 0])
+        im_input.save(
+            oj(cur_folder, "images", str(i) + ".tif"),
+        )
+        im_prediction = Image.fromarray(
+            predictions[
+                i,
+            ].astype(np.float32)/num_classes
+        )
+        
+        im_prediction.save(
+            oj(cur_folder, "predictions", str(i) + ".tif"),
+        )
+        im_annotation = Image.fromarray(
+        (annotated_images[
+                i,
+            ]).astype(np.float32)/num_classes
+        )
+        im_annotation.save(
+            oj(cur_folder, "human_annotated", str(i) + ".tif"),
+        )
+    return
 def save_progress(net, image_idxs, images, folder_path, id, args, device, results, class_dict):
     cur_folder = oj(folder_path, id)
     make_check_folder(folder_path, id)
@@ -112,7 +150,7 @@ def load_pool_data(data_path):
     # assume that first is x, second y
     my_imgs = my_imgs.astype(np.float)
     # print(my_data[0].dtype)
-    my_imgs /= my_imgs.max()
+    # my_imgs /= my_imgs.max()
     if len(my_imgs.shape) < 4:
         my_imgs = my_imgs[:, None]  # unet expects 4d
 
@@ -142,7 +180,7 @@ def load_single_file(data_path):
     return my_imgs
 
 
-def load_layer_data(data_path):
+def load_layer_data(data_path, vmax=-1, vmin =-1):
     files = os.listdir(data_path)
     if len(files) < 2:
         return load_pool_data(data_path)
@@ -169,12 +207,13 @@ def load_layer_data(data_path):
     # assume that first is x, second y
     my_data[0] = my_data[0].astype(np.float)
     # print(my_data[0].dtype)
-    my_data[0] /= my_data[0].max()
+
+    # my_data[0] /= my_data[0].max()
     if len(my_data[0].shape) < 4:
 
         my_data[0] = my_data[0][:, None]  # unet expects 4d
     my_data[1], num_classes, class_dict = make_classes(my_data[1])
-    return my_data[0], my_data[1], num_classes, class_dict
+    return my_data[0], my_data[1], num_classes, class_dict, 
 
 
 def make_classes(y):

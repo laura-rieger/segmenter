@@ -8,9 +8,9 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineFullDatasetTest",
+        "BaselineFullDataset",
     ],
-    "learningrate": [0.01, 0.001],
+    "learningrate": [ 0.001,  ],
     "seed": [x for x in range(3)],
     "cost_function": ["uncertainty_cost",],
     "add_ratio": [.0, ],

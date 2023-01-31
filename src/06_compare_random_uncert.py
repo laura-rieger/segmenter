@@ -10,7 +10,7 @@ params_to_vary = {
     "experiment_name": [
         "Comparison",
     ],
-    "learningrate": [0.01],
+    "learningrate": [0.001],
     "seed": [x for x in range(3)],
     "cost_function": ["uncertainty_cost","random"],
     "add_ratio": [.05, ],
