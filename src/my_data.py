@@ -40,6 +40,7 @@ def workflow_demo_save(net, images, annotated_images, folder_path, id, device, c
     cur_folder = oj(folder_path, str(id) ,   str(repetition_id))
     make_check_folder(oj(folder_path,str(id)) ,  str(repetition_id))
     num_classes = len(class_dict.values())
+    torch.save(net.state_dict(), oj(cur_folder, 'model', "model_state.pt"))
 
     net.eval()
     with torch.no_grad():

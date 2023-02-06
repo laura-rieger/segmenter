@@ -24,15 +24,7 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
             output = F.softmax(net.forward(image), dim=1)
             entropy  = -torch.sum(output * torch.log(output), dim=1).mean(axis=(1,2)).detach().cpu().numpy()
  
-            # output = (
-            #     F.softmax(net.forward(image), dim=1)
-            #     .std(dim=1)
-            #     .mean(axis=(1, 2))
-            #     .detach()
-            #     .cpu()
-            #     .numpy()
-            # )
-
+         
             std_arr[
                 i * loader.batch_size: i * loader.batch_size + len(output)
             ] = entropy

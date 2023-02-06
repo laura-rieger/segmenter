@@ -5,7 +5,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "12largeSamples",
+        "01Aquisition",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
@@ -13,10 +13,10 @@ params_to_vary = {
          "uncertainty_cost",   "random_cost"
     ], 
     "add_ratio": [
-           0.25,
+           0.05, 
     ],
     'poolname' : ['lno'],
-    "batch-size": [32],
+    "batch-size": [128],
     "scale": [
         0.5,
     ],
@@ -25,11 +25,11 @@ params_to_vary = {
     ],
     "epochs": [250],
     "image-size": [
-        256,
+        128,
     ],
 
     "offset": [
-        128,
+        64,
     ],
 }
 
@@ -45,7 +45,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-00:35:00",
+        time="0-03:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

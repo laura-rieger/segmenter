@@ -47,7 +47,7 @@ def train(
 ):
     net.train()
     epoch_loss = 0
-    num_batches = 32
+    num_batches = 64
 
     for i,(
         images,
@@ -207,6 +207,7 @@ def train_net(device, args):
     # 3. Create data loaders
 
     weights = [1 for x in range(len(train_set))]
+    new_weights = weights
 
     # Create a WeightedRandomSampler using the weights
     torch.manual_seed(args.seed)
@@ -217,8 +218,8 @@ def train_net(device, args):
     initial_pool_len = len(pool_loader.dataset)
 
     # old_num_train = len(train_loader.dataset)
-    # val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-    val_loader = final_val_loader
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    # val_loader = final_val_loader
     torch.manual_seed(args.seed)
     net = UNet(
         n_channels=1, n_classes=results["num_classes"], bilinear=args.bilinear
@@ -238,7 +239,7 @@ def train_net(device, args):
     # 5. Begin training
     best_val_score = 0
     # delta = 0.0001
-    patience = 2
+    patience = 10
     cur_patience = 0
     best_weights = None
     epoch =0
@@ -259,7 +260,7 @@ def train_net(device, args):
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         # val_score = evaluate.evaluate_loss(net, device, val_loader, criterion)
         results["val_scores"].append(val_score)
-        print(val_score)
+  
         # log the validation loss to wandb
         wandb.log({"val_score": val_score})
 
@@ -270,13 +271,12 @@ def train_net(device, args):
             best_weights = deepcopy(net.state_dict())
             cur_patience = 0
         else:
-            print(best_val_score)
             print(val_score)
             cur_patience += 1
 
-        if cur_patience > patience or epoch == args.epochs:
+        if cur_patience >= patience or epoch == args.epochs:
             print("Ran out of patience, ")
-            net.load_state_dict(best_weights)
+            # net.load_state_dict(best_weights)
             net.eval()
 
 
@@ -309,7 +309,9 @@ def train_net(device, args):
 
                     newTrainSet = ConcatDataset([train_loader.dataset, add_set])
                     # ad hoc weigh the new samples ten times as much
-                    new_weights = [1 for _ in range(len(train_loader.dataset))] + [5 for _ in range(len(add_set))]
+                    # ahhh, need
+                    
+                    new_weights = new_weights + [10 for _ in range(len(add_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler(new_weights, len(new_weights))
                     train_loader = DataLoader(newTrainSet, sampler=new_sampler, **loader_args)
                     # delete from pool
@@ -327,7 +329,7 @@ def train_net(device, args):
                 # load evaluation data
                 if "lno" in args.foldername:
 
-                    net.load_state_dict(best_weights)
+                    # net.load_state_dict(best_weights)
                     final_dice_score = evaluate.evaluate(net, final_val_loader, device, num_classes)
                     if type(final_dice_score) == torch.Tensor:
                         results["final_dice_score"] = final_dice_score.item()
@@ -342,7 +344,7 @@ def train_net(device, args):
                 print(os.path.join(save_path, file_name + ".pkl"))
                 pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
-                torch.save(best_weights, oj(save_path, file_name + ".pt"))
+                torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
 
                 wandb.alert(title="Run is done", text="Run is done")
                 sys.exit()

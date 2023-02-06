@@ -137,3 +137,6 @@ data/*
 *.json
 *.txt
 *.filepart
+*.pdf
+figs/comparison_long.png
+*.png
