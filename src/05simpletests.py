@@ -10,22 +10,23 @@ params_to_vary = {
         "Sanitytest",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(1)],
     "cost_function": [
-        "uncertainty_cost", 'random_cost'
+        "uncertainty_cost",
     ],
     "add_ratio": [
-         0.0, 
+         0.01, 
     ],
-    'poolname' : ['lno_human'],
+    "add_size": [
+         4, 
+    ],
+    'poolname' : ['lno_full'],
     "batch-size": [128],
-    "scale": [
-        0.5,
-    ],
+
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [150],
+    "epochs": [2],
     "image-size": [
         128,
     ],
@@ -47,7 +48,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-01:15:00",
+        time="0-00:20:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

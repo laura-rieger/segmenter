@@ -11,13 +11,10 @@ params_to_vary = {
         "BaselineFullDataset",
     ],
     "learningrate": [ 0.001,  ],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(5)],
     "cost_function": ["uncertainty_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128],
-    "scale": [
-        0.5,
-    ],
     "foldername": [
         "lno",
     ],

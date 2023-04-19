@@ -5,20 +5,21 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "01Aquisition",
+        "humanLabelled",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(1)],
     "cost_function": [
-         "uncertainty_cost",   "random_cost"
+         "uncertainty_cost",  
     ], 
     "add_ratio": [
-           0.05, 
+           0.05, .01
     ],
-    'poolname' : ['lno'],
+    'poolname' : ['lno_full'],
     "batch-size": [128],
-    "scale": [
-        0.5,
+
+    "add_step": [
+        20,
     ],
     "foldername": [
         "lno_halfHour",

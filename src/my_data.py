@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import sys
 import pickle as pkl
 import os
 from os.path import join as oj
@@ -24,13 +25,13 @@ def make_check_folder(intermittent_path, id):
 def load_annotated_imgs(data_path):
     # assumes that there are two folders, predictions and images
     images_folder = oj(data_path, "images")
-    predictions_folder = oj(data_path, "predictions")
-    assert len(os.listdir(images_folder)) == len(os.listdir(predictions_folder))
+    annot_folder = oj(data_path, "human_annotated")
+    assert len(os.listdir(images_folder)) == len(os.listdir(annot_folder))
     images = []
     predictions = []
     for file_name in os.listdir(images_folder):
         images.append(io.imread(oj(images_folder, file_name)))
-        predictions.append(io.imread(oj(predictions_folder, file_name)))
+        predictions.append(io.imread(oj(annot_folder, file_name)))
     return_dataset = TensorDataset(
         torch.Tensor(np.asarray(images)[:, None]), torch.Tensor(np.asarray(predictions))
     )
@@ -130,12 +131,15 @@ def load_data(data_path):
     return np.swapaxes(all_arr, 0, 1)
 
 
-def load_pool_data(data_path):
+def load_pool_data(data_path, ):
 
     files = os.listdir(data_path)
     file_name = files[0]
-    im = io.imread(oj(data_path, file_name))
-    if im.shape[2] == 3:
+
+    im = io.imread(oj(data_path, file_name))[::50]
+
+
+    if im.shape[2] == 3: # rgb
         im = np.swapaxes(im, 0, 2)
     imgs = np.vstack(
         [
@@ -145,40 +149,19 @@ def load_pool_data(data_path):
             im[:, 1024:, :1024],
         ]
     )
+    del im
 
     my_imgs = np.asarray(imgs)
 
-    # assume that first is x, second y
-    my_imgs = my_imgs.astype(np.float)
-    # print(my_data[0].dtype)
-    # my_imgs /= my_imgs.max()
+    # my_imgs = my_imgs.astype(np.float)
+
     if len(my_imgs.shape) < 4:
         my_imgs = my_imgs[:, None]  # unet expects 4d
 
     return my_imgs
 
 
-# function like load_pool_data but only for a single file0
-def load_single_file(data_path):
 
-    file_name = os.listdir(data_path)[0]
-
-    im = io.imread(oj(data_path, file_name))
-
-
-    imgs = np.vstack(
-        [
-            im[ None, :1024, :1024],
-            im[ None,  :1024, 1024:],
-            im[ None,  1024:, 1024:],
-            im[ None,  1024:, :1024],
-        ]
-    )
-    my_imgs = np.asarray(imgs)
-    my_imgs = my_imgs.astype(np.float)
-
-
-    return my_imgs
 
 
 def load_layer_data(data_path, vmax=-1, vmin =-1):

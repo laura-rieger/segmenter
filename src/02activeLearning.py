@@ -1,29 +1,30 @@
-
 import itertools
-import os
-
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineNoAquisition",
+        "01Aquisition",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(5)],
-    "cost_function": ["random_cost",],
-    "add_ratio": [.0, ],
+    "seed": [x for x in range(3)],
+    "cost_function": [
+         "uncertainty_cost",   "random_cost"
+    ], 
+    "add_ratio": [
+           0.05, .01
+    ],
+    'poolname' : ['lno'],
     "batch-size": [128],
+
+    "add_step": [
+        20,
+    ],
     "foldername": [
-        "lno_halfHour", 
+        "lno_halfHour",
     ],
-    "poolname": [
-        "lno", # "lno_human",
-    ],
-    "epochs": [
-        1000,
-    ],
+    "epochs": [250],
     "image-size": [
         128,
     ],
@@ -34,6 +35,7 @@ params_to_vary = {
 }
 
 keys = sorted(params_to_vary.keys())
+
 vals = [params_to_vary[k] for k in keys]
 
 param_combinations = list(itertools.product(*vals))  # list of tuples
@@ -44,7 +46,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-03:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
