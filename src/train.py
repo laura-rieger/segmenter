@@ -80,6 +80,7 @@ def train(
     return epoch_loss / (num_batches * train_loader.batch_size)  # len(train_loader)
 
 def train_net(device, args):
+    print("Start setting up data")
 
     loader_args = dict(
         batch_size=args.batch_size, num_workers=num_workers, pin_memory=True
@@ -213,6 +214,7 @@ def train_net(device, args):
     else:
         final_val_loader = val_loader
     torch.manual_seed(args.seed)
+    print("Start setting up model")
     net = UNet(
         n_channels=1, n_classes=results["num_classes"], 
     ).to(device=device)
@@ -226,12 +228,16 @@ def train_net(device, args):
     best_val_score = 0
     patience = 3
     #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
+    # todo add examples to the validation loss each time
     if args.add_step != 0: 
         patience = args.add_step
+    # print out patience
+    print("Patience is: " + str(patience))
     cur_patience = 0
     best_weights = None
     epoch = 0
-    for epoch in range(1, args.epochs + 1):
+    print("Start training")
+    for epoch in tqdm(range(1, args.epochs + 1)):
         train_loss = train(
             net,
             train_loader,
@@ -254,6 +260,9 @@ def train_net(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
+            # print current patience
+            print("Current patience is: " + str(cur_patience))
+            
 
         add_new_samples_bool = False
         # if args.add_step != 0 and epoch % args.add_step == 0:
