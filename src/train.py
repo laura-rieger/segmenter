@@ -6,6 +6,7 @@ import my_data
 from os.path import join as oj
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 import sys
 from copy import deepcopy
 from torch import optim
@@ -224,7 +225,8 @@ def train_net(device, args):
     # 5. Begin training
     best_val_score = 0
     patience = 3
-    if args.add_step != 0:
+    #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
+    if args.add_step != 0: 
         patience = args.add_step
     cur_patience = 0
     best_weights = None
@@ -243,7 +245,7 @@ def train_net(device, args):
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
         
-
+        # if the add step is unequal zero, just count up and add samples every add step
         if args.add_step == 0 and val_score > best_val_score:
             print("New best validation score: " + str(val_score))
 
@@ -254,15 +256,12 @@ def train_net(device, args):
             cur_patience += 1
 
         add_new_samples_bool = False
-        if args.add_step != 0 and epoch % args.add_step == 0:
-            add_new_samples_bool = True
+        # if args.add_step != 0 and epoch % args.add_step == 0:
+        #     add_new_samples_bool = True
         if cur_patience >= patience or epoch == args.epochs:
-            add_new_samples_bool = True
+        #     add_new_samples_bool = True
             
-
-
-
-        if add_new_samples_bool:
+        # if add_new_samples_bool:
             print("Ran out of patience, ")
             if args.add_step == 0:
                 net.load_state_dict(best_weights)
@@ -276,7 +275,7 @@ def train_net(device, args):
                 cur_patience = 0
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
 
-                if is_human_annotation:
+                if is_human_annotation: #if human annotation, wait here for further
                     my_data.save_progress(
                         net,
                         [
@@ -323,11 +322,11 @@ def train_net(device, args):
             else:
                
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
-            pkl.dump(
-                results, open(os.path.join(save_path, file_name + ".pkl"), "wb")
-            )
-            torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
-            sys.exit()
+                pkl.dump(
+                    results, open(os.path.join(save_path, file_name + ".pkl"), "wb")
+                )
+                torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
+                sys.exit()
         epoch += 1
 
 

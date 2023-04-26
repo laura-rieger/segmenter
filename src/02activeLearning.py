@@ -24,7 +24,7 @@ params_to_vary = {
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [250],
+    "epochs": [150],
     "image-size": [
         128,
     ],

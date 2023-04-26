@@ -13,18 +13,18 @@ params_to_vary = {
          "uncertainty_cost",  
     ], 
     "add_ratio": [
-           0.05, .01
+           0.02,
     ],
     'poolname' : ['lno_full'],
     "batch-size": [128],
-
+    "add_size": [4],
     "add_step": [
-        20,
+        10,
     ],
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [250],
+    "epochs": [100],
     "image-size": [
         128,
     ],

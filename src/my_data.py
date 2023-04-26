@@ -22,18 +22,41 @@ def make_check_folder(intermittent_path, id):
     return
 
 
-def load_annotated_imgs(data_path):
+def load_annotated_imgs(data_path,class_dict):
     # assumes that there are two folders, predictions and images
     images_folder = oj(data_path, "images")
     annot_folder = oj(data_path, "human_annotated")
     assert len(os.listdir(images_folder)) == len(os.listdir(annot_folder))
     images = []
-    predictions = []
+    annotations = []
     for file_name in os.listdir(images_folder):
         images.append(io.imread(oj(images_folder, file_name)))
-        predictions.append(io.imread(oj(annot_folder, file_name)))
+        annotations.append(io.imread(oj(annot_folder, file_name)))
+    print(np.unique(np.asarray(annotations)))
+    # make a list of the values in the predictions
+    annotations = np.asarray(annotations)
+    annotation_vals = np.unique(annotations)
+    inverse_class_dict = {v: k for k, v in class_dict.items()}
+    list_of_old_vals = sorted(list(inverse_class_dict.keys()))
+
+    if True:     # you want this one normally
+        for val in annotation_vals:
+            assert val in inverse_class_dict.keys()
+        new_annotations = np.zeros_like(annotations)
+        for val in annotation_vals:
+            new_annotations[annotations == val] = inverse_class_dict[val]
+        
+    else: # THIS IS ONLY FOR DEBUGGING. IT WILL MESS UP THE TRAINING BAD!!
+        annotations = np.asarray(annotations)
+        new_annotations = np.zeros_like(annotations)
+        for i,val in enumerate(annotation_vals):
+            new_annotations[annotations == val] = list_of_old_vals[np.minimum(i, len(list_of_old_vals)-1)]
+         
+
+
+
     return_dataset = TensorDataset(
-        torch.Tensor(np.asarray(images)[:, None]), torch.Tensor(np.asarray(predictions))
+        torch.Tensor(np.asarray(images)[:, None]), torch.Tensor(np.asarray(new_annotations))
     )
     return return_dataset
 

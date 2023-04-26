@@ -110,7 +110,7 @@ def train_net(device, args, run_id):
         ]
     )
     # old_num_train = len(train_set)
-    annotated_set = my_data.load_annotated_imgs(oj(config["PATHS"]["progress_results"], run_id))
+    annotated_set = my_data.load_annotated_imgs(oj(config["PATHS"]["progress_results"], run_id, ), class_dict)
     weights = [1 for _ in range(len(train_set))] + [10 for _ in range(len(annotated_set))]
 
     train_set = ConcatDataset([train_set, annotated_set])
@@ -249,13 +249,17 @@ def train_net(device, args, run_id):
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train a unet ")
-    parser.add_argument("--filename", "-e", type=str, default='0271415969')
+    parser.add_argument("--filename", "-e", type=str, default='0271415942')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     config = configparser.ConfigParser()
-    config.read("../config.ini")
+    # if there is a config file in the parent folder load it, otherwise look in this folder
+    if os.path.exists("../config.ini"):
+        config.read("../config.ini")
+    else:
+        config.read("config.ini")
     args = get_args()
     # load args
     run_id = args.filename
