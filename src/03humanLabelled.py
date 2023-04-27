@@ -15,14 +15,14 @@ params_to_vary = {
     "add_ratio": [
            0.02,
     ],
-    'poolname' : ['lno_full'],
+    'poolname' : ['voltif_LNO'],
     "batch-size": [128],
     "add_size": [4],
     "add_step": [
         10,
     ],
     "foldername": [
-        "lno_halfHour",
+        "DataLNO",
     ],
     "epochs": [100],
     "image-size": [

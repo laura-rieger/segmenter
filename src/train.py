@@ -185,7 +185,7 @@ def train_net(device, args):
     initial_pool_len = len(pool_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
     # xxx needs to be changed before production
-    if "lno" in args.foldername: 
+    if "lno" in args.foldername or "LNO" in args.foldername: 
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data(
             oj(config["DATASET"]["data_path"], "lno")
@@ -237,7 +237,10 @@ def train_net(device, args):
     best_weights = None
     epoch = 0
     print("Start training")
-    for epoch in tqdm(range(1, args.epochs + 1)):
+    # tqdm total is patience if add step is unequal zero, otherwise args.epoch
+
+    tqdm_total  = patience if args.add_step != 0 else args.epochs
+    for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
         train_loss = train(
             net,
             train_loader,
@@ -267,7 +270,7 @@ def train_net(device, args):
         add_new_samples_bool = False
         # if args.add_step != 0 and epoch % args.add_step == 0:
         #     add_new_samples_bool = True
-        if cur_patience >= patience or epoch == args.epochs:
+        if cur_patience > patience or epoch == args.epochs:
         #     add_new_samples_bool = True
             
         # if add_new_samples_bool:

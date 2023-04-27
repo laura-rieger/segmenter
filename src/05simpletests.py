@@ -7,7 +7,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "Sanitytest",
+        "AHHHH",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
@@ -15,7 +15,7 @@ params_to_vary = {
         "uncertainty_cost",
     ],
     "add_ratio": [
-         0.01, 
+         0.00, 
     ],
     "add_size": [
          4, 
@@ -24,9 +24,9 @@ params_to_vary = {
     "batch-size": [128],
 
     "foldername": [
-        "lno_halfHour",
+        "DataLNO",
     ],
-    "epochs": [2],
+    "epochs": [30],
     "image-size": [
         128,
     ],
