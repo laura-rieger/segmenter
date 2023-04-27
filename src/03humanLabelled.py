@@ -17,7 +17,7 @@ params_to_vary = {
     ],
     'poolname' : ['voltif_LNO'],
     "batch-size": [128],
-    "add_size": [4],
+    "add_size": [30],
     "add_step": [
         10,
     ],
