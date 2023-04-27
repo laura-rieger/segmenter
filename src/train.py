@@ -234,12 +234,13 @@ def train_net(device, args):
     # print out patience
     print("Patience is: " + str(patience))
     cur_patience = 0
+    delta_patience = 10e-5
     best_weights = None
     epoch = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
-    tqdm_total  = patience if args.add_step != 0 else args.epochs
+    tqdm_total = patience if args.add_step != 0 else args.epochs
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
         train_loss = train(
             net,
@@ -255,7 +256,7 @@ def train_net(device, args):
         results["train_losses"].append(train_loss)
         
         # if the add step is unequal zero, just count up and add samples every add step
-        if args.add_step == 0 and val_score > best_val_score:
+        if val_score > best_val_score + delta_patience:
             print("New best validation score: " + str(val_score))
 
             best_val_score = val_score
@@ -286,6 +287,10 @@ def train_net(device, args):
             ):
                 cur_patience = 0
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
+                num_val = np.maximum(int(len(add_ids) * args.val / 100), 1)
+                add_train_ids = add_ids[:-num_val]
+                add_val_ids = add_ids[-num_val:]
+
 
                 if is_human_annotation: #if human annotation, wait here for further
                     my_data.save_progress(
@@ -304,31 +309,24 @@ def train_net(device, args):
                     print(file_name)
                     sys.exit()
                 else:
-                    add_set = TensorDataset(
-                        *[
-                            torch.Tensor(x_pool_all[add_ids]),
-                            torch.Tensor(y_pool_all[add_ids]),
-                        ]
-                    )
-                    # write out the new samples, the predictions and the labels for a presentation
-                    newTrainSet = ConcatDataset([train_loader.dataset, add_set])
-                    # ad hoc weigh the new samples ten times as much
-                    new_weights = new_weights + [10 for _ in range(len(add_set))]
-                    new_sampler = torch.utils.data.WeightedRandomSampler(
-                        new_weights, len(new_weights)
-                    )
-                    train_loader = DataLoader(
-                        newTrainSet, sampler=new_sampler, **loader_args
-                    )
+                    add_train_set = TensorDataset(*[torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ])
+                    newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
+                    new_weights = new_weights + [10 for _ in range(len(add_train_set))]
+                    new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
+                    train_loader = DataLoader( newTrainSet, sampler=new_sampler, **loader_args)
+
+                    add_val_set = TensorDataset(*[torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ])
+                    newValSet = ConcatDataset([val_loader.dataset, add_val_set])
+                    new_weights = new_weights + [10 for _ in range(len(add_val_set))]
+                    new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
+                    val_loader = DataLoader( newValSet, sampler=new_sampler, **loader_args)
+                    best_val_score = 0
+
+
                     # delete from pool
                     x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
-                    pool_set = TensorDataset(
-                        *[
-                            torch.Tensor(x_pool_all),
-                            torch.Tensor(y_pool_all),
-                        ]
-                    )
+                    pool_set = TensorDataset(*[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all),] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     print("Added {} samples to the training set".format(len(add_ids)))
             else:
