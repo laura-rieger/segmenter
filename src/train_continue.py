@@ -114,27 +114,13 @@ def train_net(device, args, run_id):
     weights = [1 for _ in range(len(train_set))] + [10 for _ in range(len(annotated_set))]
 
     train_set = ConcatDataset([train_set, annotated_set])
-    val_set = TensorDataset(
-        *[
-            torch.Tensor(input)
-            for input in my_data.make_dataset(
-                x[val_idxs],
-                y[val_idxs],
-                img_size=args.image_size,
-                offset=args.image_size,
-            )
-        ]
-    )
+    val_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset( x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.image_size, ) ] )
     x_pool = my_data.load_pool_data(
         oj(config["DATASET"]["data_path"], args.poolname)
     )
     x_pool = x_pool.astype(np.float16)
     x_pool = (x_pool - data_min) / (data_max - data_min)
-    x_pool_fine = my_data.make_dataset_single(
-        x_pool,
-        img_size=args.image_size,
-        offset=args.image_size,
-    )[0]
+    x_pool_fine = my_data.make_dataset_single( x_pool, img_size=args.image_size, offset=args.image_size, )[0]
     pool_ids = np.arange(len(x_pool_fine))
     remove_id_list = pkl.load(open(oj(config["PATHS"]["progress_results"], run_id, 'image_idxs.pkl'), "rb"))
     for remove_ids in remove_id_list:
@@ -152,7 +138,7 @@ def train_net(device, args, run_id):
     net.load_state_dict(torch.load(oj(config["PATHS"]["progress_results"], run_id, "model_state.pt")))
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.Adam(
-        net.parameters(),args.lr,
+        net.parameters(), args.lr,
     )
     grad_scaler = torch.cuda.amp.GradScaler(enabled=True)
     criterion = nn.CrossEntropyLoss(ignore_index=255)
@@ -164,7 +150,7 @@ def train_net(device, args, run_id):
     init_epochs = len(results['val_scores'])
     args.epochs = 10000
     for epoch in tqdm(range(init_epochs, args.epochs + 1)):
-        train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
+        train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
         args.epochs = 10000
@@ -193,7 +179,6 @@ def train_net(device, args, run_id):
       
 
         if cur_patience >= patience and label_budget_exceeded:
-
             break
 
     # do a final evaluation

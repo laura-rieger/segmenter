@@ -5,12 +5,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "TestEverythingstillworks",
+        "NewWeightFactorValidation",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
     "cost_function": [
-         "uncertainty_cost",   "random_cost"
+         "uncertainty_cost",  
     ], 
     "add_ratio": [
            0.05, 
@@ -19,12 +19,12 @@ params_to_vary = {
     "batch-size": [128],
 
     "add_step": [
-        20,
+        3,
     ],
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [150],
+    "epochs": [20],
     "image-size": [
         128,
     ],

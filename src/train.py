@@ -147,14 +147,9 @@ def train_net(device, args):
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
-
-# args.add_step
-
-
-
     tqdm_total = args.add_step if is_human_annotation else args.epochs
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
-        train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
+        train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
@@ -168,21 +163,10 @@ def train_net(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
-            # print current patience
-            print("Current patience is: " + str(cur_patience))
-            
 
-        add_new_samples_bool = False
-        # if args.add_step != 0 and epoch % args.add_step == 0:
-        #     add_new_samples_bool = True
         if cur_patience > args.add_step or epoch == args.epochs:
-        #     add_new_samples_bool = True
-            
-        # if add_new_samples_bool:
             print("Ran out of patience, ")
-            if args.add_step == 0:
-                net.load_state_dict(best_weights)
-            
+     
             net.eval()
 
             if (len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
@@ -206,20 +190,20 @@ def train_net(device, args):
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
                     new_weights = new_weights + [weight_factor for _ in range(len(add_train_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
-                    train_loader = DataLoader( newTrainSet, sampler=new_sampler, **loader_args)
+                    train_loader = DataLoader(newTrainSet, sampler=new_sampler, **loader_args)
 
                     add_val_set = TensorDataset(*[torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ])
                     newValSet = ConcatDataset([val_loader.dataset, add_val_set])
                     new_weights = new_weights + [weight_factor for _ in range(len(add_val_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
-                    val_loader = DataLoader( newValSet, sampler=new_sampler, **loader_args)
+                    val_loader = DataLoader( newValSet, sampler=new_sampler, shuffle=False, drop_last=True,  **loader_args)
                     best_val_score = 0
 
 
                     # delete from pool
                     x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
-                    pool_set = TensorDataset(*[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all),] )
+                    pool_set = TensorDataset(*[torch.Tensor(x_pool_all), torch.Tensor(y_pool_all),] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     print("Added {} samples to the training set".format(len(add_ids)))
             else:
@@ -229,6 +213,7 @@ def train_net(device, args):
                     os.makedirs(save_path)
                 pkl.dump( results, open(os.path.join(save_path, file_name + ".pkl"), "wb") )
                 torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
+                torch.save(best_weights, oj(save_path, file_name + ".pt"))
                 sys.exit()
         epoch += 1
 
@@ -238,20 +223,20 @@ def get_args():
         description="Train the UNet on images and target masks"
     )
     parser.add_argument("--epochs", "-e", type=int, default=2)
-    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
-    parser.add_argument( "--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
-    parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
+    parser.add_argument("--batch-size", "-b", dest="batch_size", type=int, default=2, )
+    parser.add_argument("--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
+    parser.add_argument("--add_ratio", type=float, default=0.02, )
+    parser.add_argument("--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_full2", )
-    parser.add_argument( "--experiment_name", "-g", type=str, default="", )
-    parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
-    parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
-    parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
-    parser.add_argument( "--offset", dest="offset", type=int, default=64, )
-    parser.add_argument( "--seed", "-t", type=int, default=42, )
-    parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
-    parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
+    parser.add_argument("--poolname", type=str, default="lno_full2", )
+    parser.add_argument("--experiment_name","-g", type=str, default="", )
+    parser.add_argument("--learningrate","-l", type=float, default=0.001, dest="lr", )
+    parser.add_argument("--image-size", dest="image_size", type=int, default=128, )
+    parser.add_argument("--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
+    parser.add_argument("--offset", dest="offset", type=int, default=64, )
+    parser.add_argument("--seed","-t", type=int, default=42, )
+    parser.add_argument("--validation","-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
+    parser.add_argument("--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument("--add_step", type=int, default=0, help = "> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated",)
 
     return parser.parse_args()

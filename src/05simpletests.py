@@ -15,7 +15,7 @@ params_to_vary = {
         "uncertainty_cost",
     ],
     "add_ratio": [
-         0.02, 
+         0.05, 
     ],
     "add_size": [
          30, 
