@@ -15,10 +15,10 @@ params_to_vary = {
         "uncertainty_cost",
     ],
     "add_ratio": [
-         0.00, 
+         0.02, 
     ],
     "add_size": [
-         4, 
+         30, 
     ],
     'poolname' : ['lno_full'],
     "batch-size": [128],

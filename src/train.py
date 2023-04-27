@@ -149,7 +149,7 @@ def train_net(device, args):
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
-    tqdm_total  = patience if args.add_step != 0 else args.epochs
+    tqdm_total = patience if args.add_step != 0 else args.epochs
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
         train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
@@ -215,6 +215,8 @@ def train_net(device, args):
             else:
                
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
                 pkl.dump( results, open(os.path.join(save_path, file_name + ".pkl"), "wb") )
                 torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
                 sys.exit()

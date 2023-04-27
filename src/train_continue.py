@@ -164,16 +164,7 @@ def train_net(device, args, run_id):
     init_epochs = len(results['val_scores'])
     args.epochs = 10000
     for epoch in tqdm(range(init_epochs, args.epochs + 1)):
-        train_loss = train(
-            net,
-            train_loader,
-            criterion,
-            num_classes,
-            optimizer,
-            device,
-            grad_scaler,
-        )
-    
+        train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
         args.epochs = 10000
@@ -195,11 +186,7 @@ def train_net(device, args, run_id):
         
             add_ids = cost_function(net, device, pool_loader, n_choose=8)
             remove_id_list.append(add_ids)
-            my_data.save_progress(net,
-                                  remove_id_list, 
-                                  x_pool_fine[add_ids], 
-                                  config["PATHS"]["progress_results"],
-                                  file_name, args, device, results, class_dict)
+            my_data.save_progress(net, remove_id_list, x_pool_fine[add_ids], config["PATHS"]["progress_results"], file_name, args, device, results, class_dict)
             print(file_name)
             sys.exit()
 
@@ -240,7 +227,8 @@ def train_net(device, args, run_id):
             results["final_dice_score"] = final_dice_score.item()
         else:
             results["final_dice_score"] = final_dice_score
-
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
     pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb"))
 
     torch.save(best_weights, oj(save_path, file_name + ".pt"))
