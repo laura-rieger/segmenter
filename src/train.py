@@ -98,10 +98,13 @@ def train_net(device, args):
 
     # 3. Create data loaders
     # the total weight of the added data should be equal to the training set
-    weight_factor = len(train_set) / (len(pool_set) * args.add_ratio)
+    weight_factor = len(train_set) / (len(pool_set) * args.add_ratio * (1- args.val / 100))
+    val_weight_factor = len(val_set) / (len(pool_set) * args.add_ratio *args.val / 100)
 
     weights = [1 for x in range(len(train_set))]
+    val_weights = [1 for x in range(len(val_set))]
     new_weights = weights
+    new_val_weights = val_weights
 
     # Create a WeightedRandomSampler using the weights
     torch.manual_seed(args.seed)
@@ -111,7 +114,18 @@ def train_net(device, args):
     initial_pool_len = len(pool_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
     # xxx needs to be changed before production
-    if "lno" in args.foldername or "LNO" in args.foldername: 
+    # test if there is a folder oj(config["DATASET"]["data_path"], "lno") AND lno is in the foldername
+    if (os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ("lno" in args.foldername or "LNO" in args.foldername):
+
+    if ()"lno" in args.foldername or "LNO" in args.foldername): 
+
+
+        # test if case invariant lno is in folder name
+        if "lno" in args.foldername or "LNO" in args.foldername:
+
+
+
+
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
         x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
