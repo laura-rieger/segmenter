@@ -81,6 +81,8 @@ def train_net(device, args):
     init_train_idxs = all_train_idxs
     train_set = TensorDataset(*[torch.Tensor(input) for input in my_data.make_dataset(x[init_train_idxs], y[init_train_idxs], img_size=args.image_size, offset=args.offset,)])
     val_set = TensorDataset(*[torch.Tensor(input) for input in my_data.make_dataset(x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.image_size,)])
+    new_val_set = None
+    new_val_loader = None
     # num_train = len(train_set)
     is_human_annotation = (len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1 )
     if is_human_annotation:
@@ -109,7 +111,7 @@ def train_net(device, args):
     train_loader = DataLoader(train_set, sampler=sampler, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
     initial_pool_len = len(pool_loader.dataset)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
     # xxx needs to be changed before production
     if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ("lno" in args.foldername or "LNO" in args.foldername):
         # load the fully annotated data to get the final evaluation on unseen "real" data
@@ -122,7 +124,7 @@ def train_net(device, args):
         n_val_final = np.maximum(int(len(x_final) * args.val / 100), 1)
         val_idxs_final = all_idxs_final[-n_val_final:]
         val_set_final = TensorDataset(*[torch.Tensor(input) for input in my_data.make_dataset( x_final[val_idxs_final], y_final[val_idxs_final], img_size=args.image_size, offset=args.image_size,)])
-        final_val_loader = DataLoader( val_set_final, shuffle=False, drop_last=True, **loader_args)
+        final_val_loader = DataLoader( val_set_final, shuffle=False, drop_last=False, **loader_args)
     else:
         final_val_loader = val_loader
     torch.manual_seed(args.seed)
@@ -153,23 +155,24 @@ def train_net(device, args):
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
         train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
+        if new_val_set != None:
+            new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes).item()
+            # obtain middle between old and new score
+            val_score = (val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
+
         results["val_scores"].append(val_score)
         # print length of val scores
         print("Length of val scores is: " + str(len(results["val_scores"])))
         results["train_losses"].append(train_loss)
         
         # if the add step is unequal zero, just count up and add samples every add step
-        if args.add_step == 0 and val_score > best_val_score:
-            print("New best validation score: " + str(val_score))
 
-            best_val_score = val_score
-            best_weights = deepcopy(net.state_dict())
-            cur_patience = 0
-        else:
-            cur_patience += 1
-            # print current patience
-            print("Current patience is: " + str(cur_patience))
-            
+        print("New best validation score: " + str(val_score))
+
+        best_val_score = val_score
+        best_weights = deepcopy(net.state_dict())
+        cur_patience = 0
+
         if cur_patience > patience or epoch == args.epochs:
 
             print("Ran out of patience, ")
@@ -191,24 +194,41 @@ def train_net(device, args):
                     print(file_name)
                     sys.exit()
                 else:
-                    add_set = TensorDataset(*[torch.Tensor(x_pool_all[add_ids]), torch.Tensor(y_pool_all[add_ids]),])
+                    num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1)
+                    add_train_ids = add_ids[:-num_val_add]
+                    add_val_ids = add_ids[-num_val_add:]
+
+                    add_train_set = TensorDataset(*[torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]),])
+                    add_val_set = TensorDataset(*[torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]),])
+
+
+
                     # write out the new samples, the predictions and the labels for a presentation
-                    newTrainSet = ConcatDataset([train_loader.dataset, add_set])
+                    newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
+                    if new_val_set is None:
+                        newValSet = ConcatDataset([val_loader.dataset, add_val_set])
+                        new_val_loader = DataLoader(newValSet, shuffle=False, **loader_args)
+                    else:
+                        newValSet = ConcatDataset([new_val_set, add_val_set])
+
                     # weigh the samples such as the total weight of them will be equal to the dataset
-                    new_weights = new_weights + [weight_factor for _ in range(len(add_set))]
+                    new_weights = new_weights + [weight_factor for _ in range(len(add_train_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler(
                         new_weights, len(new_weights)
                     )
                     train_loader = DataLoader(
                         newTrainSet, sampler=new_sampler, **loader_args
                     )
+                   
                     # delete from pool
                     x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
                     pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
+                    best_val_score = 0
                     print("Added {} samples to the training set".format(len(add_ids)))
             else:
+                net.load_state_dict(best_weights)
                
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
                 if not os.path.exists(save_path):

@@ -73,16 +73,12 @@ def evaluate(net, dataloader, device, num_classes):
 
     # iterate over the validation set
     for (image, mask_true) in dataloader:
-        # image, mask_true = batch['image'], batch['mask']
-        # move images and labels to correct device and type
+
         image = image.to(device=device, dtype=torch.float32)
         mask_true = mask_true.to(device=device, dtype=torch.long)
-        # account for background
-
-        # mask_true = F.one_hot(mask_true, net.n_classes).permute(0, 3, 1, 2).float()
 
         with torch.no_grad():
-            # predict the mask
+
             mask_pred = net(image)
             mask_pred = (
                 F.one_hot(mask_pred.argmax(dim=1), net.n_classes)
