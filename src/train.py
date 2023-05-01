@@ -183,8 +183,7 @@ def train_net(device, args):
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
 
                 if is_human_annotation: 
-                    #if human annotation, wait here for further
-                    # check if this folder exists config["PATHS"]["progress_results"]
+
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])
                     my_data.save_progress(net, [add_ids, ], x_pool_all[add_ids], config["PATHS"]["progress_results"], file_name, args, device, results, class_dict, )
@@ -195,7 +194,7 @@ def train_net(device, args):
                     # write out the new samples, the predictions and the labels for a presentation
                     newTrainSet = ConcatDataset([train_loader.dataset, add_set])
                     # weigh the samples such as the total weight of them will be equal to the dataset
-                    new_weights = new_weights + [10 for _ in range(len(add_set))]
+                    new_weights = new_weights + [weight_factor for _ in range(len(add_set))]
                     new_sampler = torch.utils.data.WeightedRandomSampler(
                         new_weights, len(new_weights)
                     )
