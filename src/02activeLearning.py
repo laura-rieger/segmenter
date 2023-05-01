@@ -5,7 +5,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "NewWeightFactor",
+        "OldWeightFactor",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
@@ -13,13 +13,15 @@ params_to_vary = {
          "uncertainty_cost",   "random_cost"
     ], 
     "add_ratio": [
-           0.02, .05
+           .05,
     ],
     'poolname' : ['lno'],
     "batch-size": [128],
-
+    "add_size": [
+           4,
+    ],
     "add_step": [
-        4,
+        10,
     ],
     "foldername": [
         "lno_halfHour",
