@@ -70,7 +70,7 @@ def workflow_demo_save(net, images, annotated_images, folder_path, id, device, c
     with torch.no_grad():
         img_t = torch.Tensor(images).to(device)
         predictions = (
-            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(np.float32)
+            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
         )
         predictions_classes = np.zeros_like(predictions)
         for key, val in class_dict.items():
@@ -84,7 +84,7 @@ def workflow_demo_save(net, images, annotated_images, folder_path, id, device, c
         im_prediction = Image.fromarray(
             predictions[
                 i,
-            ].astype(np.float32)/num_classes
+            ].astype(float)/num_classes
         )
         
         im_prediction.save(
@@ -93,7 +93,7 @@ def workflow_demo_save(net, images, annotated_images, folder_path, id, device, c
         im_annotation = Image.fromarray(
         (annotated_images[
                 i,
-            ]).astype(np.float32)/num_classes
+            ]).astype(float)/num_classes
         )
         im_annotation.save(
             oj(cur_folder, "human_annotated", str(i) + ".tif"),
@@ -112,7 +112,7 @@ def save_progress(net, image_idxs, images, folder_path, id, args, device, result
     with torch.no_grad():
         img_t = torch.Tensor(images).to(device)
         predictions = (
-            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(np.float32)
+            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
         )
         predictions_classes = np.zeros_like(predictions)
         for key, val in class_dict.items():
@@ -124,7 +124,7 @@ def save_progress(net, image_idxs, images, folder_path, id, args, device, result
             oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"),
         )
         im = Image.fromarray(
-            predictions[
+            predictions_classes[
                 i,
             ]
         )
@@ -212,7 +212,7 @@ def load_layer_data(data_path, vmax=-1, vmin =-1):
         my_data.append(my_imgs)
 
     # assume that first is x, second y
-    my_data[0] = my_data[0].astype(np.float)
+    my_data[0] = my_data[0].astype(float)
     # print(my_data[0].dtype)
 
     # my_data[0] /= my_data[0].max()
@@ -266,7 +266,7 @@ def make_dataset(
                 )
                 cur_y += offset
             cur_x += offset
-    x_return = np.asarray(x_list).astype(np.float)
+    x_return = np.asarray(x_list).astype(float)
 
     return x_return, np.asarray(y_list)
 
@@ -295,6 +295,6 @@ def make_dataset_single(
 
                 cur_y += offset
             cur_x += offset
-    x_return = np.asarray(x_list).astype(np.float)
+    x_return = np.asarray(x_list).astype(float)
 
     return (x_return,)

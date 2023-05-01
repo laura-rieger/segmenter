@@ -111,7 +111,7 @@ def train_net(device, args):
     initial_pool_len = len(pool_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
     # xxx needs to be changed before production
-    if "lno" in args.foldername or "LNO" in args.foldername: 
+    if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ("lno" in args.foldername or "LNO" in args.foldername):
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
         x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
@@ -154,6 +154,8 @@ def train_net(device, args):
         train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
+        # print length of val scores
+        print("Length of val scores is: " + str(len(results["val_scores"])))
         results["train_losses"].append(train_loss)
         
         # if the add step is unequal zero, just count up and add samples every add step
@@ -168,14 +170,8 @@ def train_net(device, args):
             # print current patience
             print("Current patience is: " + str(cur_patience))
             
-
-        add_new_samples_bool = False
-        # if args.add_step != 0 and epoch % args.add_step == 0:
-        #     add_new_samples_bool = True
         if cur_patience > patience or epoch == args.epochs:
-        #     add_new_samples_bool = True
-            
-        # if add_new_samples_bool:
+
             print("Ran out of patience, ")
             if args.add_step == 0:
                 net.load_state_dict(best_weights)
