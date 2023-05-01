@@ -90,7 +90,7 @@ def train_net(device, args):
         pool_set = TensorDataset(torch.Tensor(x_pool_all))
 
     else:
-        x_pool, y_pool, _, _ = my_data.load_layer_data(oj(config["DATASET"]["data_path"], args.poolname) )
+        x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool = (x_pool - data_min) / (data_max - data_min)
         x_pool, y_pool = x_pool[:-4], y_pool[:-4]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
@@ -98,13 +98,10 @@ def train_net(device, args):
 
     # 3. Create data loaders
     # the total weight of the added data should be equal to the training set
-    weight_factor = len(train_set) / (len(pool_set) * args.add_ratio * (1- args.val / 100))
-    val_weight_factor = len(val_set) / (len(pool_set) * args.add_ratio *args.val / 100)
+    weight_factor = len(train_set) / (len(pool_set)* args.add_ratio)
 
     weights = [1 for x in range(len(train_set))]
-    val_weights = [1 for x in range(len(val_set))]
     new_weights = weights
-    new_val_weights = val_weights
 
     # Create a WeightedRandomSampler using the weights
     torch.manual_seed(args.seed)
@@ -114,18 +111,7 @@ def train_net(device, args):
     initial_pool_len = len(pool_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
     # xxx needs to be changed before production
-    # test if there is a folder oj(config["DATASET"]["data_path"], "lno") AND lno is in the foldername
-    if (os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ("lno" in args.foldername or "LNO" in args.foldername):
-
-    if ()"lno" in args.foldername or "LNO" in args.foldername): 
-
-
-        # test if case invariant lno is in folder name
-        if "lno" in args.foldername or "LNO" in args.foldername:
-
-
-
-
+    if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ("lno" in args.foldername or "LNO" in args.foldername):
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
         x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
@@ -144,32 +130,36 @@ def train_net(device, args):
     net = UNet(
         n_channels=1, n_classes=results["num_classes"], 
     ).to(device=device)
-    optimizer = optim.Adam( net.parameters(), lr=args.lr, )
+    optimizer = optim.Adam( net.parameters(), lr=args.lr,
+    )
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     # 5. Begin training
     best_val_score = 0
-
+    patience = 3
     #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
     # todo add examples to the validation loss each time
-    
-    print("Patience is: " + str(args.add_step))
+    if args.add_step != 0: 
+        patience = args.add_step
+    # print out patience
+    print("Patience is: " + str(patience))
     cur_patience = 0
-    delta_patience = 10e-5
     best_weights = None
     epoch = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
-    tqdm_total = args.add_step if is_human_annotation else args.epochs
+    tqdm_total = patience if args.add_step != 0 else args.epochs
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
-        train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
+        train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
+        # print length of val scores
+        print("Length of val scores is: " + str(len(results["val_scores"])))
         results["train_losses"].append(train_loss)
         
         # if the add step is unequal zero, just count up and add samples every add step
-        if val_score > best_val_score + delta_patience:
+        if args.add_step == 0 and val_score > best_val_score:
             print("New best validation score: " + str(val_score))
 
             best_val_score = val_score
@@ -177,19 +167,20 @@ def train_net(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
+            # print current patience
+            print("Current patience is: " + str(cur_patience))
+            
+        if cur_patience > patience or epoch == args.epochs:
 
-        if cur_patience > args.add_step or epoch == args.epochs:
             print("Ran out of patience, ")
-     
+            if args.add_step == 0:
+                net.load_state_dict(best_weights)
+            
             net.eval()
 
-            if (len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
+            if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
                 cur_patience = 0
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
-                num_val = np.maximum(int(len(add_ids) * args.val / 100), 1)
-                add_train_ids = add_ids[:-num_val]
-                add_val_ids = add_ids[-num_val:]
-
 
                 if is_human_annotation: 
                     #if human annotation, wait here for further
@@ -200,24 +191,21 @@ def train_net(device, args):
                     print(file_name)
                     sys.exit()
                 else:
-                    add_train_set = TensorDataset(*[torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ])
-                    newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
-                    new_weights = new_weights + [weight_factor for _ in range(len(add_train_set))]
-                    new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
-                    train_loader = DataLoader(newTrainSet, sampler=new_sampler, **loader_args)
-
-                    add_val_set = TensorDataset(*[torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ])
-                    newValSet = ConcatDataset([val_loader.dataset, add_val_set])
-                    new_weights = new_weights + [weight_factor for _ in range(len(add_val_set))]
-                    new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights))
-                    val_loader = DataLoader( newValSet, sampler=new_sampler, shuffle=False, drop_last=True,  **loader_args)
-                    best_val_score = 0
-
-
+                    add_set = TensorDataset(*[torch.Tensor(x_pool_all[add_ids]), torch.Tensor(y_pool_all[add_ids]),])
+                    # write out the new samples, the predictions and the labels for a presentation
+                    newTrainSet = ConcatDataset([train_loader.dataset, add_set])
+                    # weigh the samples such as the total weight of them will be equal to the dataset
+                    new_weights = new_weights + [10 for _ in range(len(add_set))]
+                    new_sampler = torch.utils.data.WeightedRandomSampler(
+                        new_weights, len(new_weights)
+                    )
+                    train_loader = DataLoader(
+                        newTrainSet, sampler=new_sampler, **loader_args
+                    )
                     # delete from pool
                     x_pool_all = np.delete(x_pool_all, add_ids, axis=0)
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
-                    pool_set = TensorDataset(*[torch.Tensor(x_pool_all), torch.Tensor(y_pool_all),] )
+                    pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     print("Added {} samples to the training set".format(len(add_ids)))
             else:
@@ -227,7 +215,6 @@ def train_net(device, args):
                     os.makedirs(save_path)
                 pkl.dump( results, open(os.path.join(save_path, file_name + ".pkl"), "wb") )
                 torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
-                torch.save(best_weights, oj(save_path, file_name + ".pt"))
                 sys.exit()
         epoch += 1
 
@@ -237,20 +224,20 @@ def get_args():
         description="Train the UNet on images and target masks"
     )
     parser.add_argument("--epochs", "-e", type=int, default=2)
-    parser.add_argument("--batch-size", "-b", dest="batch_size", type=int, default=2, )
-    parser.add_argument("--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
-    parser.add_argument("--add_ratio", type=float, default=0.02, )
-    parser.add_argument("--foldername", type=str, default="lno_halfHour", )
+    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
+    parser.add_argument( "--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
+    parser.add_argument( "--add_ratio", type=float, default=0.02, )
+    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument("--poolname", type=str, default="lno_full2", )
-    parser.add_argument("--experiment_name","-g", type=str, default="", )
-    parser.add_argument("--learningrate","-l", type=float, default=0.001, dest="lr", )
-    parser.add_argument("--image-size", dest="image_size", type=int, default=128, )
-    parser.add_argument("--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
-    parser.add_argument("--offset", dest="offset", type=int, default=64, )
-    parser.add_argument("--seed","-t", type=int, default=42, )
-    parser.add_argument("--validation","-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
-    parser.add_argument("--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
+    parser.add_argument( "--poolname", type=str, default="lno_full2", )
+    parser.add_argument( "--experiment_name", "-g", type=str, default="", )
+    parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
+    parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
+    parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
+    parser.add_argument( "--offset", dest="offset", type=int, default=64, )
+    parser.add_argument( "--seed", "-t", type=int, default=42, )
+    parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
+    parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument("--add_step", type=int, default=0, help = "> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated",)
 
     return parser.parse_args()
