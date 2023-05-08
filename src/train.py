@@ -138,7 +138,8 @@ def train_net(device, args):
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     # 5. Begin training
     best_val_score = 0
-    patience = 3
+    patience = 3 if args.add_step == 0 else args.add_step
+    patience_delta = 0.005
     #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
     # todo add examples to the validation loss each time
     if args.add_step != 0: 
@@ -151,34 +152,35 @@ def train_net(device, args):
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
-    tqdm_total = patience if args.add_step != 0 else args.epochs
+    tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     for epoch in tqdm(range(1, args.epochs + 1), total=tqdm_total):
         train_loss = train( net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         if new_val_set != None:
             new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes).item()
+            print(new_val_score, val_score)
+            print(len(new_val_loader.dataset) * weight_factor, len(val_loader.dataset))
             # obtain middle between old and new score
             val_score = (val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
 
         results["val_scores"].append(val_score)
         # print length of val scores
-        print("Length of val scores is: " + str(len(results["val_scores"])))
+        print(results["val_scores"][-1])
         results["train_losses"].append(train_loss)
+
         
         # if the add step is unequal zero, just count up and add samples every add step
-
-        print("New best validation score: " + str(val_score))
-
-        best_val_score = val_score
-        best_weights = deepcopy(net.state_dict())
-        cur_patience = 0
+        if val_score > best_val_score + patience_delta:
+            best_val_score = val_score
+            best_weights = deepcopy(net.state_dict())
+            cur_patience = 0
+        else:
+            cur_patience += 1
 
         if cur_patience > patience or epoch == args.epochs:
 
             print("Ran out of patience, ")
-            if args.add_step == 0:
-                net.load_state_dict(best_weights)
-            
+  
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
@@ -226,17 +228,17 @@ def train_net(device, args):
                     pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     best_val_score = 0
-                    print("Added {} samples to the training set".format(len(add_ids)))
+                    print("Added {} samples to the training set".format(len(add_train_ids)))
             else:
                 net.load_state_dict(best_weights)
                
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
-                pkl.dump( results, open(os.path.join(save_path, file_name + ".pkl"), "wb") )
+                pkl.dump(results, open(os.path.join(save_path, file_name + ".pkl"), "wb") )
                 torch.save(net.state_dict(), oj(save_path, file_name + ".pt"))
                 sys.exit()
-        epoch += 1
+
 
 
 def get_args():

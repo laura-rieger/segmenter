@@ -5,29 +5,26 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "NewValidationTest",
+        "humanLabelled",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
     "cost_function": [
-         "uncertainty_cost", # "random_cost"
+         "uncertainty_cost",  
     ], 
     "add_ratio": [
-           0.02, 
+           0.02,
     ],
-    'poolname' : ['lno'],
+    'poolname' : ['voltif_LNO'],
     "batch-size": [128],
-
+    "add_size": [2],
     "add_step": [
         10,
     ],
-    "add_size": [
-        4,
-    ],
     "foldername": [
-        "lno_halfHour",
+        "DataLNO",
     ],
-    "epochs": [200],
+    "epochs": [100],
     "image-size": [
         128,
     ],
@@ -49,7 +46,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-05:35:00",
+        time="0-03:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

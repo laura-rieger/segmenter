@@ -120,17 +120,9 @@ def save_progress(net, image_idxs, images, folder_path, id, args, device, result
 
     for i in range(len(images)):
         im = Image.fromarray(images[i, 0])
-        im.save(
-            oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"),
-        )
-        im = Image.fromarray(
-            predictions[
-                i,
-            ]
-        )
-        im.save(
-            oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"),
-        )
+        im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"), )
+        im = Image.fromarray( predictions[ i, ] )
+        im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"), )
     return
 
 

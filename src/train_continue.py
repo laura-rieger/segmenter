@@ -170,7 +170,7 @@ def train_net(device, args, run_id):
         label_budget_exceeded = len(pool_loader.dataset) / initial_pool_len < 1 - args.add_ratio
         if (default_add or patience_add) and not label_budget_exceeded:
         
-            add_ids = cost_function(net, device, pool_loader, n_choose=8)
+            add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
             remove_id_list.append(add_ids)
             my_data.save_progress(net, remove_id_list, x_pool_fine[add_ids], config["PATHS"]["progress_results"], file_name, args, device, results, class_dict)
             print(file_name)
