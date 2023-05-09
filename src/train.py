@@ -165,7 +165,11 @@ def train_net(device, args):
 
         results["val_scores"].append(val_score)
         # print length of val scores
+<<<<<<< HEAD
         print(results["val_scores"][-1])
+=======
+        print("Length of val scores is: " + str(len(results["val_scores"])))
+>>>>>>> origin/main
         results["train_losses"].append(train_loss)
 
         
@@ -176,7 +180,13 @@ def train_net(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
+<<<<<<< HEAD
 
+=======
+            # print current patience
+            print("Current patience is: " + str(cur_patience))
+            
+>>>>>>> origin/main
         if cur_patience > patience or epoch == args.epochs:
 
             print("Ran out of patience, ")
@@ -188,8 +198,7 @@ def train_net(device, args):
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
 
                 if is_human_annotation: 
-                    #if human annotation, wait here for further
-                    # check if this folder exists config["PATHS"]["progress_results"]
+
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])
                     my_data.save_progress(net, [add_ids, ], x_pool_all[add_ids], config["PATHS"]["progress_results"], file_name, args, device, results, class_dict, )

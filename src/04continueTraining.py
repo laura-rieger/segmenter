@@ -1,37 +1,13 @@
 import itertools
+import os
+
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-    "experiment_name": [
-        "humanLabelled",
-    ],
-    "learningrate": [0.001],
-    "seed": [x for x in range(1)],
-    "cost_function": [
-         "uncertainty_cost",  
-    ], 
-    "add_ratio": [
-           0.02,
-    ],
-    'poolname' : ['voltif_LNO'],
-    "batch-size": [128],
-    "add_size": [2],
-    "add_step": [
-        10,
-    ],
-    "foldername": [
-        "DataLNO",
-    ],
-    "epochs": [100],
-    "image-size": [
-        128,
-    ],
 
-    "offset": [
-        64,
-    ],
+    "filename": ['9095603222'],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -46,16 +22,12 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-<<<<<<< HEAD
-        time="0-03:35:00",
-=======
-        time="0-00:10:00",
->>>>>>> origin/main
+        time="0-00:20:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_continue.py "
 
     for j, key in enumerate(keys):
 

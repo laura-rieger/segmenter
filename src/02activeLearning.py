@@ -5,10 +5,10 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "NewValidationTest",
+        "NewValidation",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(1)],
+    "seed": [x for x in range(3)],
     "cost_function": [
          "uncertainty_cost", # "random_cost"
     ], 
@@ -17,7 +17,9 @@ params_to_vary = {
     ],
     'poolname' : ['lno'],
     "batch-size": [128],
-
+    "add_size": [
+           4,
+    ],
     "add_step": [
         10,
     ],
