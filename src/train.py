@@ -165,11 +165,7 @@ def train_net(device, args):
 
         results["val_scores"].append(val_score)
         # print length of val scores
-<<<<<<< HEAD
         print(results["val_scores"][-1])
-=======
-        print("Length of val scores is: " + str(len(results["val_scores"])))
->>>>>>> origin/main
         results["train_losses"].append(train_loss)
 
         
@@ -180,13 +176,9 @@ def train_net(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
-<<<<<<< HEAD
-
-=======
             # print current patience
             print("Current patience is: " + str(cur_patience))
             
->>>>>>> origin/main
         if cur_patience > patience or epoch == args.epochs:
 
             print("Ran out of patience, ")

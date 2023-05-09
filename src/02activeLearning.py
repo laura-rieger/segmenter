@@ -5,12 +5,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "NewValidation",
+        "NewValidation2",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
     "cost_function": [
-         "uncertainty_cost", # "random_cost"
+         "uncertainty_cost", "random_cost"
     ], 
     "add_ratio": [
            0.02, 
