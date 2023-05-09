@@ -60,45 +60,31 @@ def load_annotated_imgs(data_path,class_dict):
     )
     return return_dataset
 
-def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
-    cur_folder = oj(folder_path, str(id) ,   str(repetition_id))
-    make_check_folder(oj(folder_path,str(id)) ,  str(repetition_id))
-    num_classes = len(class_dict.values())
-    torch.save(net.state_dict(), oj(cur_folder, 'model', "model_state.pt"))
+# def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
+#     cur_folder = oj(folder_path, str(id),   str(repetition_id))
+#     make_check_folder(oj(folder_path, (id)),  str(repetition_id))
+#     num_classes = len(class_dict.values())
+#     torch.save(net.state_dict(), oj(cur_folder, 'model', "model_state.pt"))
 
-    net.eval()
-    with torch.no_grad():
-        img_t = torch.Tensor(images).to(device)
-        predictions = (
-            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
-        )
-        predictions_classes = np.zeros_like(predictions)
-        for key, val in class_dict.items():
-            predictions_classes[predictions == key] = val
+#     net.eval()
+#     with torch.no_grad():
+#         img_t = torch.Tensor(images).to(device)
+#         predictions = (
+#             net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
+#         )
+#         predictions_classes = np.zeros_like(predictions)
+#         for key, val in class_dict.items():
+#             predictions_classes[predictions == key] = val
 
-    for i in range(len(images)):
-        im_input = Image.fromarray(images[i, 0])
-        im_input.save(
-            oj(cur_folder, "images", str(i) + ".tif"),
-        )
-        im_prediction = Image.fromarray(
-            predictions[
-                i,
-            ].astype(float)/num_classes
-        )
-        
-        im_prediction.save(
-            oj(cur_folder, "predictions", str(i) + ".tif"),
-        )
-        im_annotation = Image.fromarray(
-        (annotated_images[
-                i,
-            ]).astype(float)/num_classes
-        )
-        im_annotation.save(
-            oj(cur_folder, "human_annotated", str(i) + ".tif"),
-        )
-    return
+#     for i in range(len(images)):
+#         im_input = Image.fromarray(images[i, 0])
+#         im_input.save( oj(cur_folder, "images", str(i) + ".tif"), )
+#         im_prediction = Image.fromarray( predictions[ i, ].astype(float)/num_classes )
+#         im_prediction.save( oj(cur_folder, "predictions", str(i) + ".tif"), )
+#         im_annotation = Image.fromarray( (annotated_images[ i, ]).astype(float)/num_classes )
+#         im_annotation.save( oj(cur_folder, "human_annotated", str(i) + ".tif"),
+#         )
+#     return
 def save_progress(net, image_idxs, images, folder_path, id, args, device, results, class_dict):
     cur_folder = oj(folder_path, id)
     make_check_folder(folder_path, id)
@@ -111,26 +97,16 @@ def save_progress(net, image_idxs, images, folder_path, id, args, device, result
     net.eval()
     with torch.no_grad():
         img_t = torch.Tensor(images).to(device)
-        predictions = (
-            net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
-        )
-        predictions_classes = np.zeros_like(predictions)
+        predictions = ( net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float) )
+        predictions_classes = np.zeros_like(predictions, dtype=np.uint8)
         for key, val in class_dict.items():
             predictions_classes[predictions == key] = val
 
     for i in range(len(images)):
         im = Image.fromarray(images[i, 0])
-        im.save(
-            oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"),
-        )
-        im = Image.fromarray(
-            predictions_classes[
-                i,
-            ]
-        )
-        im.save(
-            oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"),
-        )
+        im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"), )
+        im = Image.fromarray( predictions_classes[ i, ] )
+        im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"), )
     return
 
 
