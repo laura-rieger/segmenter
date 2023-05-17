@@ -211,10 +211,11 @@ if __name__ == "__main__":
 
     run_folder = oj(config["PATHS"]["progress_results"], str(run_id))
     args = pkl.load(open(oj(run_folder, "args.pkl"), "rb"))
-    if is_windows:
-        args.batch_size = 2
+
     
     results = pkl.load(open(oj(run_folder, "results.pkl"), "rb"))
+    if is_windows:
+        args.batch_size = 2
     for arg in vars(args):
         results[str(arg)] = getattr(args, arg)
     # results["file_name"] = file_name

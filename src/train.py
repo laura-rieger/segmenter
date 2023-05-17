@@ -262,7 +262,7 @@ def get_args():
     parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
     parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument("--add_step", type=int, default=0, help = "> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated",)
-
+    parser.add_argument("--filename", "-e", type=str, default='9772197289')
     return parser.parse_args()
 
 
