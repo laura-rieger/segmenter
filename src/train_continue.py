@@ -116,10 +116,11 @@ def train_net(device, args, run_id, results ):
     init_epochs = len(results['val_scores'])
     # args.epochs = 10000
     for epoch in tqdm(range(init_epochs, args.epochs + 1)):
-        train_loss =   train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
+        train_loss =  train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, )
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         results["val_scores"].append(val_score)
-        args.epochs = 10000
+        results["train_losses"].append(train_loss)
+        # args.epochs = 10000
         # results["train_losses"].append(train_loss)
 
         if val_score > best_val_score and args.add_step == 0:

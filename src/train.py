@@ -92,7 +92,7 @@ def train_net(device, args):
         pool_set = TensorDataset(torch.Tensor(x_pool_all))
 
     else:
-        x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
+        x_pool, y_pool, _, _ = my_data.load_layer_data(oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool = (x_pool - data_min) / (data_max - data_min)
         x_pool, y_pool = x_pool[:-4], y_pool[:-4]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
@@ -100,7 +100,7 @@ def train_net(device, args):
 
     # 3. Create data loaders
     # the total weight of the added data should be equal to the training set
-    weight_factor = len(train_set) / (len(pool_set)* args.add_ratio) if args.add_ratio != 0 else 1
+    weight_factor = len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val/100)) if args.add_ratio != 0 else 1
 
     weights = [1 for x in range(len(train_set))]
     new_weights = weights
@@ -129,17 +129,15 @@ def train_net(device, args):
         final_val_loader = val_loader
     torch.manual_seed(args.seed)
     print("Start setting up model")
-    net = UNet(
-        n_channels=1, n_classes=results["num_classes"], 
-    ).to(device=device)
-    optimizer = optim.Adam( net.parameters(), lr=args.lr,
-    )
+    net = UNet( n_channels=1, n_classes=results["num_classes"], ).to(device=device)
+    optimizer = optim.Adam( net.parameters(), lr=args.lr, )
+
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     # 5. Begin training
     best_val_score = 0
     patience = 3 if args.add_step == 0 else args.add_step
-    patience_delta = 0.001
+    patience_delta = 0.00
     #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
     # todo add examples to the validation loss each time
 
@@ -157,8 +155,7 @@ def train_net(device, args):
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         if new_val_set != None:
             new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes).item()
-            print(new_val_score, val_score)
-            print(len(new_val_loader.dataset) * weight_factor, len(val_loader.dataset))
+   
             # obtain middle between old and new score
             val_score = (val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
 
@@ -180,9 +177,8 @@ def train_net(device, args):
             
         if cur_patience >= patience or epoch == args.epochs:
 
-            print("Ran out of patience, ")
-            net.load_state_dict(best_weights)
-  
+            # print("Ran out of patience, ")
+            
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
@@ -214,6 +210,7 @@ def train_net(device, args):
                         new_val_loader = DataLoader(newValSet, shuffle=False, **loader_args)
                     else:
                         newValSet = ConcatDataset([new_val_set, add_val_set])
+                        new_val_loader = DataLoader(newValSet, shuffle=False, **loader_args)
 
                     # weigh the samples such as the total weight of them will be equal to the dataset
                     new_weights = new_weights + [weight_factor for _ in range(len(add_train_set))]
@@ -230,8 +227,11 @@ def train_net(device, args):
                     pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     best_val_score = 0
+                    best_weights = None
                     print("Added {} samples to the training set".format(len(add_train_ids)))
             else:
+                net.load_state_dict(best_weights)
+                net.eval()
     
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
                 if not os.path.exists(save_path):
@@ -252,7 +252,7 @@ def get_args():
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_full2", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )

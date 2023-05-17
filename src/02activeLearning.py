@@ -5,35 +5,35 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "CompareVsBaseline",
+        "ActiveLearningComparison3",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(1)],
+    "seed": [x for x in range(3)],
     "cost_function": [
-         "uncertainty_cost", # "random_cost"
+         "uncertainty_cost",  "random_cost"
     ], 
     "add_ratio": [
-           0.02, 
+           0.05, 
     ],
     'poolname' : ['lno'],
     "batch-size": [128],
 
     "add_step": [
-        2,
+        1,
     ],
     "add_size": [
-        4,
+        8,
     ],
     "foldername": [
         "lno_halfHour",
     ],
-    "epochs": [200],
+    "epochs": [700],
     "image-size": [
         128,
     ],
 
     "offset": [
-        64,
+        128,
     ],
 }
 

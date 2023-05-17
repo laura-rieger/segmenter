@@ -8,10 +8,10 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineFullDataset",
+        "BaselineFullDatasetSGD",
     ],
     "learningrate": [ 0.001,  ],
-    "seed": [5 for x in range(1)],
+    "seed": [x for x in range(1)],
     "cost_function": ["uncertainty_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128],
@@ -40,7 +40,7 @@ param_combinations = list(itertools.product(*vals))  # list of tuples
 print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
-        mail_type="FAIL,END",
+        mail_type="FAIL",
         partition="sm3090",
         N=1,
         n=8,
