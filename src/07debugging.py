@@ -5,7 +5,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "WriteOut",
+        "WriteOutFinalVal",
     ],
     "learningrate": [0.0005],
     "seed": [x for x in range(1)],

@@ -181,11 +181,13 @@ def train_net(device, args):
         if cur_patience >= patience or epoch == args.epochs:
 
             print("Ran out of patience, ")
+            net.load_state_dict(best_weights)
   
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
                 cur_patience = 0
+                
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
 
                 if is_human_annotation: 
@@ -230,8 +232,7 @@ def train_net(device, args):
                     best_val_score = 0
                     print("Added {} samples to the training set".format(len(add_train_ids)))
             else:
-                net.load_state_dict(best_weights)
-               
+    
                 results["final_dice_score"] = evaluate.evaluate(net, final_val_loader, device, num_classes).item()
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)

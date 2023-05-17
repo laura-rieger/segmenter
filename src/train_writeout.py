@@ -80,6 +80,10 @@ def train_net(device, args):
     init_train_idxs = all_train_idxs
     train_set = TensorDataset(*[torch.Tensor(input) for input in my_data.make_dataset(x[init_train_idxs], y[init_train_idxs], img_size=args.image_size, offset=args.offset,)])
     val_set = TensorDataset(*[torch.Tensor(input) for input in my_data.make_dataset(x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.offset,)])
+
+
+
+    
     new_val_set = None
     new_val_loader = None
     # num_train = len(train_set)
@@ -126,6 +130,7 @@ def train_net(device, args):
         final_val_loader = DataLoader( val_set_final, shuffle=False, drop_last=False, **loader_args)
     else:
         final_val_loader = val_loader
+
     torch.manual_seed(args.seed)
     print("Start setting up model")
     net = UNet(
@@ -186,6 +191,8 @@ def train_net(device, args):
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio):
                 cur_patience = 0
+                # load previous best weights
+                net.load_state_dict(best_weights)
                 add_ids = cost_function(net, device, pool_loader, n_choose=args.add_size)
 
                 if is_human_annotation: 
