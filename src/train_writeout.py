@@ -30,12 +30,9 @@ def train(
 ):
     net.train()
     epoch_loss = 0
-    num_batches = 64
 
-    for i, (
-        images,
-        true_masks,
-    ) in enumerate(train_loader):
+    num_batches = 64 
+    for i, ( images, true_masks, ) in enumerate(train_loader):
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [2, ],) 
             true_masks = torch.flip(true_masks, [1, ], )
@@ -58,8 +55,10 @@ def train(
             break
     return epoch_loss / (num_batches * train_loader.batch_size)  # len(train_loader)
 
+
 def train_net(device, args):
     print("Start setting up data")
+    cur_round = 0
     loader_args = dict( batch_size=args.batch_size, num_workers=num_workers, pin_memory=True )
     cost_function = getattr(evaluate, args.cost_function)
     results["val_scores"] = []
@@ -100,7 +99,7 @@ def train_net(device, args):
 
     # 3. Create data loaders
     # the total weight of the added data should be equal to the training set
-    weight_factor = len(train_set) / (len(pool_set)* args.add_ratio) if args.add_ratio != 0 else 1
+    weight_factor = len(train_set) / (len(pool_set)* args.add_ratio)
 
     weights = [1 for x in range(len(train_set))]
     new_weights = weights
@@ -142,7 +141,8 @@ def train_net(device, args):
     patience_delta = 0.001
     #if adding samples, assume initial dataset is roughly annotated and just add samples every fixed number of steps
     # todo add examples to the validation loss each time
-
+    if args.add_step != 0: 
+        patience = args.add_step
     # print out patience
     print("Patience is: " + str(patience))
     cur_patience = 0
@@ -157,7 +157,7 @@ def train_net(device, args):
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         if new_val_set != None:
             new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes).item()
-            print(new_val_score, val_score)
+            # print(new_val_score, val_score)
             print(len(new_val_loader.dataset) * weight_factor, len(val_loader.dataset))
             # obtain middle between old and new score
             val_score = (val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
@@ -176,9 +176,9 @@ def train_net(device, args):
         else:
             cur_patience += 1
             # print current patience
-            print("Current patience is: " + str(cur_patience))
+            # print("Current patience is: " + str(cur_patience))
             
-        if cur_patience >= patience or epoch == args.epochs:
+        if cur_patience > patience or epoch == args.epochs:
 
             print("Ran out of patience, ")
   
@@ -201,11 +201,22 @@ def train_net(device, args):
                     add_val_ids = add_ids[-num_val_add:]
 
                     add_train_set = TensorDataset(*[torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]),])
+                    # check ifoj(config["PATHS"]["progress_results"], file_name + "_images") exists, if not create it
+                    # import Image
+                    from PIL import Image
+
+                    if not os.path.exists(oj(config["PATHS"]["progress_results"], file_name, "images")):
+                        os.makedirs(oj(config["PATHS"]["progress_results"], file_name, "images"))
+                    for img_idx in range(len(add_train_ids)):
+                        # write out the numpy arrays as a png image
+                        im = Image.fromarray(x_pool_all[add_train_ids[img_idx]].astype(float)[0])
+                        im.save(oj(config["PATHS"]["progress_results"], file_name, "images", str(cur_round) + "__" + str(img_idx) + ".tif"), )
+                    cur_round += 1
                     add_val_set = TensorDataset(*[torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]),])
 
 
 
-                    # write out the new samples, the predictions and the labels for a presentation
+                   
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
                     if new_val_set is None:
                         newValSet = ConcatDataset([val_loader.dataset, add_val_set])
@@ -249,9 +260,9 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="lno", )
+    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_full2", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
@@ -260,7 +271,7 @@ def get_args():
     parser.add_argument( "--seed", "-t", type=int, default=42, )
     parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
     parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
-    parser.add_argument("--add_step", type=int, default=0, help = "> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated",)
+    parser.add_argument("--add_step", type=int, default=2, help = "> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated",)
 
     return parser.parse_args()
 

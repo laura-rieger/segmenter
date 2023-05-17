@@ -140,3 +140,4 @@ data/*
 *.pdf
 figs/comparison_long.png
 *.png
+progress_files/*

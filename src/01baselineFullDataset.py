@@ -11,7 +11,7 @@ params_to_vary = {
         "BaselineFullDataset",
     ],
     "learningrate": [ 0.001,  ],
-    "seed": [x for x in range(5)],
+    "seed": [5 for x in range(1)],
     "cost_function": ["uncertainty_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128],
@@ -22,7 +22,7 @@ params_to_vary = {
         "lno", # "lno_human",
     ],
     "epochs": [
-        30,
+        300,
     ],
     "image-size": [
         128,
