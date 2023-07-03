@@ -99,8 +99,8 @@ def load_annotated_imgs(data_path, class_dict):
 def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list):
     cur_folder = oj(folder_path, results['file_name'])
     make_check_folder(folder_path, results['file_name'])
-    #XXX debug slow internet
-    # torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
+
+    torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
     pkl.dump(image_idxs, open(oj(cur_folder, "image_idxs.pkl"), "wb"))
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
