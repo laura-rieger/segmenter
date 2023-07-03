@@ -4,34 +4,20 @@ import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-    "experiment_name": [
-        "humanLabelled",
-    ],
+    "experiment_name": [ "humanLabelled", ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
-    "cost_function": [
-         "uncertainty_cost",  
-    ], 
-    "add_ratio": [
-           0.02,
-    ],
+    "cost_function": [ "uncertainty_cost", ], 
+    "add_ratio": [ 0.02, ], # what proportion of the pool is added to the training set
     'poolname' : ['voltif_LNO'],
     "batch-size": [128],
-    "add_size": [4],
-    "add_step": [
-        10,
-    ],
-    "foldername": [
-        "DataLNO",
-    ],
+    "add_size": [4], # how many images are added each step
+    "add_step": [ 10, ], #how long should there be no improvement before adding more data
+    "foldername": [ "DataLNO", ],
     "epochs": [100],
-    "image-size": [
-        128,
-    ],
+    "image-size": [ 128, ],
 
-    "offset": [
-        64,
-    ],
+    "offset": [ 64, ],
 }
 
 keys = sorted(params_to_vary.keys())

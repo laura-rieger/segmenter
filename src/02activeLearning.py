@@ -5,36 +5,22 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "ActiveLearningComparison3",
+        "ActiveLearningComparisonFinalTraining",
     ],
     "learningrate": [0.001],
-    "seed": [x for x in range(3)],
-    "cost_function": [
-         "uncertainty_cost",  "random_cost"
-    ], 
-    "add_ratio": [
-           0.05, 
-    ],
+    "seed": [x for x in range(5)],
+    "cost_function": [ "uncertainty_cost",  "random_cost" ], 
+    "add_ratio": [ 0.05, ],
     'poolname' : ['lno'],
     "batch-size": [128],
 
-    "add_step": [
-        1,
-    ],
-    "add_size": [
-        8,
-    ],
-    "foldername": [
-        "lno_halfHour",
-    ],
+    "add_step": [ 2, ],
+    "add_size": [ 4, ], 
+    "foldername": [ "lno_halfHour", ],
     "epochs": [700],
-    "image-size": [
-        128,
-    ],
+    "image-size": [ 128, ],
 
-    "offset": [
-        128,
-    ],
+    "offset": [ 64, ],
 }
 
 keys = sorted(params_to_vary.keys())

@@ -6,8 +6,7 @@ import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-
-    "filename": ['9095603222'],
+    "progress_folder": ['0436935624'],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -27,7 +26,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train_continue.py "
+    cur_function = "python train.py "
 
     for j, key in enumerate(keys):
 

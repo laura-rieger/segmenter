@@ -22,16 +22,25 @@ def make_check_folder(intermittent_path, id):
     return
 
 
-def load_annotated_imgs(data_path,class_dict):
+def load_annotated_imgs(data_path, class_dict):
+    # assumes that everything with _0 is training and everything with _1 is testing
     # assumes that there are two folders, predictions and images
     images_folder = oj(data_path, "images")
     annot_folder = oj(data_path, "human_annotated")
     assert len(os.listdir(images_folder)) == len(os.listdir(annot_folder))
     images = []
     annotations = []
-    for file_name in os.listdir(images_folder):
+    is_test_list = []
+  
+
+    for file_name in sorted(os.listdir(images_folder)):
+
         images.append(io.imread(oj(images_folder, file_name)))
         annotations.append(io.imread(oj(annot_folder, file_name)))
+        if "_0" in file_name:
+            is_test_list.append(False)
+        elif "_1" in file_name:
+            is_test_list.append(True)
     print(np.unique(np.asarray(annotations)))
     # make a list of the values in the predictions
     annotations = np.asarray(annotations)
@@ -52,13 +61,15 @@ def load_annotated_imgs(data_path,class_dict):
         for i,val in enumerate(annotation_vals):
             new_annotations[annotations == val] = list_of_old_vals[np.minimum(i, len(list_of_old_vals)-1)]
          
+    return_dataset_train = TensorDataset(
+        torch.Tensor(np.asarray([x for x, is_test_val in zip(images, is_test_list) if not is_test_val])[:, None]), 
+        torch.Tensor(np.asarray([x for x, is_test_val in zip(new_annotations, is_test_list) if not is_test_val])[:, ]))
+    return_dataset_test = TensorDataset(
+        torch.Tensor(np.asarray([x for x, is_test_val in zip(images, is_test_list) if is_test_val])[:, None]),
+        torch.Tensor(np.asarray([x for x, is_test_val in zip(new_annotations, is_test_list) if is_test_val])[:, ]))
 
 
-
-    return_dataset = TensorDataset(
-        torch.Tensor(np.asarray(images)[:, None]), torch.Tensor(np.asarray(new_annotations))
-    )
-    return return_dataset
+    return (return_dataset_train,return_dataset_test)
 
 # def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
 #     cur_folder = oj(folder_path, str(id),   str(repetition_id))
@@ -85,9 +96,9 @@ def load_annotated_imgs(data_path,class_dict):
 #         im_annotation.save( oj(cur_folder, "human_annotated", str(i) + ".tif"),
 #         )
 #     return
-def save_progress(net, image_idxs, images, folder_path, id, args, device, results, class_dict):
-    cur_folder = oj(folder_path, id)
-    make_check_folder(folder_path, id)
+def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list):
+    cur_folder = oj(folder_path, results['file_name'])
+    make_check_folder(folder_path, results['file_name'])
     torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
     pkl.dump(image_idxs, open(oj(cur_folder, "image_idxs.pkl"), "wb"))
 
@@ -104,9 +115,9 @@ def save_progress(net, image_idxs, images, folder_path, id, args, device, result
 
     for i in range(len(images)):
         im = Image.fromarray(images[i, 0])
-        im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + ".tif"), )
+        im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
         im = Image.fromarray( predictions_classes[ i, ] )
-        im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + ".tif"), )
+        im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
     return
 
 
@@ -164,7 +175,7 @@ def load_pool_data(data_path, ):
 
 
 def load_layer_data(data_path, vmax=-1, vmin =-1):
-    files = os.listdir(data_path)
+    files = sorted(os.listdir(data_path))
     if len(files) < 2:
         return load_pool_data(data_path)
     my_data = []
