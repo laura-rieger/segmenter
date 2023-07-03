@@ -5,6 +5,7 @@ import platform
 import my_data
 from os.path import join as oj
 import torch
+torch.backends.cudnn.deterministic = True
 import torch.nn as nn
 from tqdm import tqdm
 import sys
@@ -32,6 +33,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
     # num_batches = 64 # ad hoc value 
 
     for i, ( images, true_masks, ) in enumerate(train_loader):
+        
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [ 2, ], )
             true_masks = torch.flip( true_masks, [ 1, ], )
@@ -227,6 +229,8 @@ def run(device, args):
                     print(results["file_name"])
                     sys.exit()
                 else:
+                    # my_data.save_progress( net, remove_id_list, x_pool_all[add_ids], config["PATHS"]["progress_results"], args, device, results, class_dict, add_indicator_list, )
+                    
                     add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ] )
                     add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ] )
 

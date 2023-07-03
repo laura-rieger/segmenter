@@ -4,34 +4,20 @@ import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-    "experiment_name": [
-        "WriteOutFinalVal",
-    ],
-    "learningrate": [0.0005],
-    "seed": [x for x in range(1)],
-    "cost_function": [
-         "uncertainty_cost",  
-    ], 
-    "add_ratio": [
-           0.02,
-    ],
-    'poolname' : ['lno'],
+    "experiment_name": [ "humanLabelled", ],
+    "learningrate": [0.001],
+    "seed": [0 for x in range(2)],
+    "cost_function": [ "uncertainty_cost", ], 
+    "add_ratio": [ 0.02, ], # what proportion of the pool is added to the training set
+    'poolname' : ['voltif_LNO'],
     "batch-size": [128],
-    "add_size": [4],
-    "add_step": [
-        3,
-    ],
-    "foldername": [
-        "lno_halfHour",
-    ],
+    "add_size": [4], # how many images are added each step
+    "add_step": [ 1, ], #how long should there be no improvement before adding more data
+    "foldername": [ "DataLNO", ],
     "epochs": [100],
-    "image-size": [
-        128,
-    ],
+    "image-size": [ 128, ],
 
-    "offset": [
-        64,
-    ],
+    "offset": [ 64, ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -51,7 +37,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train_writeout.py "
+    cur_function = "python train.py "
 
     for j, key in enumerate(keys):
 
