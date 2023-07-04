@@ -5,12 +5,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "CutoffCostTrialLoadWeightsBilinear",
+        "CutoffCostTrialAgain",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
     "cost_function": [ "cut_off_cost",  ], 
-    "add_ratio": [ 0.02, ],
+    "add_ratio": [  .02, ],
     'poolname' : ['lno'],
     "batch-size": [128],
 

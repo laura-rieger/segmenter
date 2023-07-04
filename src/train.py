@@ -31,6 +31,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
     net.train()
     epoch_loss = 0
     # num_batches = 64 # ad hoc value 
+    
 
     for i, ( images, true_masks, ) in enumerate(train_loader):
         
@@ -45,7 +46,8 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
         with torch.cuda.amp.autocast(enabled=True):
             if torch.any(true_masks != 255):
                 masks_pred = net(images)
-                loss = criterion(masks_pred, true_masks)
+                # rn calculating array size each iteration - should change to once
+                loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
                 loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss + loss_dice).backward()
@@ -151,14 +153,15 @@ def run(device, args):
     torch.manual_seed(args.seed)
 
     np.random.seed(args.seed)
-    net = UNet( n_channels=1, n_classes=results["num_classes"],bilinear = True ).to(device=device)
+ 
+    net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
     optimizer = optim.Adam( net.parameters(), lr=args.lr, )
 
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255) # xxx
+    criterion = nn.CrossEntropyLoss(ignore_index=255,reduction = 'mean') # xxx
     # 5. Begin training
     best_val_score = 0
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -198,7 +201,7 @@ def run(device, args):
             print("Current patience is: " + str(cur_patience))
 
         if cur_patience >= patience or epoch == args.epochs:
-            net.load_state_dict(best_weights)
+            # net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
@@ -283,7 +286,7 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="lno", )
+    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
     parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
