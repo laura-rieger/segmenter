@@ -228,14 +228,14 @@ def run(device, args):
                 else:
                     
                     #only to determine 
-                    remove_id_list.append(add_list)
-                    my_data.save_progress(net, 
-                                          remove_id_list, 
-                                          x_pool_all[add_ids], 
-                                          config["PATHS"]["progress_results"], 
-                                          args, 
-                                          device, results, class_dict, add_indicator_list, 
-                                          save_model=False)
+                    # remove_id_list.append(add_list)
+                    # my_data.save_progress(net, 
+                    #                       remove_id_list, 
+                    #                       x_pool_all[add_ids], 
+                    #                       config["PATHS"]["progress_results"], 
+                    #                       args, 
+                    #                       device, results, class_dict, add_indicator_list, 
+                    #                       save_model=False)
                     
                     add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ] )
                     add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ] )

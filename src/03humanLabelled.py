@@ -12,7 +12,7 @@ params_to_vary = {
     'poolname' : ['voltif_LNO'],
     "batch-size": [128],
     "add_size": [4], # how many images are added each step
-    "add_step": [ 1, ], #how long should there be no improvement before adding more data
+    "add_step": [ 3, ], #how long should there be no improvement before adding more data
     "foldername": [ "DataLNO", ],
     "epochs": [100],
     "image-size": [ 128, ],
