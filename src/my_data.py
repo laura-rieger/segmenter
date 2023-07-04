@@ -5,9 +5,11 @@ import pickle as pkl
 import os
 from os.path import join as oj
 from skimage import io
+
+import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import  TensorDataset
-
+debug = True
 
 def make_check_folder(intermittent_path, id):
     if not os.path.exists(intermittent_path):
@@ -15,6 +17,10 @@ def make_check_folder(intermittent_path, id):
     if not os.path.exists(oj(intermittent_path, id)):
         os.makedirs(oj(intermittent_path, id))
         os.makedirs(oj(intermittent_path, id, "images"))
+        if debug:
+            
+            os.makedirs(oj(intermittent_path, id, "entropy"))
+
 
         os.makedirs(oj(intermittent_path, id, "human_annotated"))
         os.makedirs(oj(intermittent_path, id, "predictions"))
@@ -69,7 +75,7 @@ def load_annotated_imgs(data_path, class_dict):
         torch.Tensor(np.asarray([x for x, is_test_val in zip(new_annotations, is_test_list) if is_test_val])[:, ]))
 
 
-    return (return_dataset_train,return_dataset_test)
+    return (return_dataset_train, return_dataset_test)
 
 # def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
 #     cur_folder = oj(folder_path, str(id),   str(repetition_id))
@@ -96,11 +102,12 @@ def load_annotated_imgs(data_path, class_dict):
 #         im_annotation.save( oj(cur_folder, "human_annotated", str(i) + ".tif"),
 #         )
 #     return
-def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list):
+def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list, save_model = True):
     cur_folder = oj(folder_path, results['file_name'])
     make_check_folder(folder_path, results['file_name'])
+    if save_model:
 
-    torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
+        torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
     pkl.dump(image_idxs, open(oj(cur_folder, "image_idxs.pkl"), "wb"))
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
@@ -109,7 +116,12 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
     net.eval()
     with torch.no_grad():
         img_t = torch.Tensor(images).to(device)
-        predictions = ( net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float) )
+        predictions = (net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float) )
+        if debug:
+            output = F.softmax(net.forward(img_t), dim=1)
+            entropy = -torch.sum(output * torch.log(output), dim=1).detach().cpu().numpy()
+            entropy = entropy / np.max(entropy)
+           
         predictions_classes = np.zeros_like(predictions, dtype=np.uint8)
         for key, val in class_dict.items():
             predictions_classes[predictions == key] = val
@@ -119,6 +131,10 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
         im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
         im = Image.fromarray( predictions_classes[ i, ] )
         im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+        if debug:
+            im = Image.fromarray( entropy[ i, ] )
+            im.save( oj(cur_folder, "entropy", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+
     return
 
 

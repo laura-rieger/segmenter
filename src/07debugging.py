@@ -9,8 +9,8 @@ params_to_vary = {
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
-    "cost_function": [ "uncertainty_cost",   ], 
-    "add_ratio": [ 0.05, ],
+    "cost_function": [ "uncertainty_cost", "random_cost"   ], 
+    "add_ratio": [ 0.02, ],
     'poolname' : ['lno'],
     "batch-size": [128],
 

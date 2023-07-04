@@ -151,14 +151,14 @@ def run(device, args):
     torch.manual_seed(args.seed)
 
     np.random.seed(args.seed)
-    net = UNet( n_channels=1, n_classes=results["num_classes"], ).to(device=device)
+    net = UNet( n_channels=1, n_classes=results["num_classes"],bilinear = True ).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
     optimizer = optim.Adam( net.parameters(), lr=args.lr, )
 
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255)
+    criterion = nn.CrossEntropyLoss(ignore_index=255) # xxx
     # 5. Begin training
     best_val_score = 0
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -176,14 +176,7 @@ def run(device, args):
         results["val_scores"]
     )  # if this is in progress, we start at the current epoch
     for epoch in tqdm(range(init_epochs, args.epochs + 1), total=tqdm_total):
-        train_loss = train(net, 
-                           train_loader, 
-                           criterion, 
-                           num_classes, 
-                           optimizer, 
-                           device, 
-                           grad_scaler, 
-                           args.num_batches)
+        train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, args.num_batches)
         val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
         if new_val_set is not None:
             new_val_score = evaluate.evaluate( net, new_val_loader, device, num_classes).item()
@@ -205,6 +198,7 @@ def run(device, args):
             print("Current patience is: " + str(cur_patience))
 
         if cur_patience >= patience or epoch == args.epochs:
+            net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
@@ -231,8 +225,14 @@ def run(device, args):
                 else:
                     
                     #only to determine 
-                    # remove_id_list.append(add_list)
-                    # my_data.save_progress( net, remove_id_list, x_pool_all[add_ids], config["PATHS"]["progress_results"], args, device, results, class_dict, add_indicator_list, )
+                    remove_id_list.append(add_list)
+                    my_data.save_progress(net, 
+                                          remove_id_list, 
+                                          x_pool_all[add_ids], 
+                                          config["PATHS"]["progress_results"], 
+                                          args, 
+                                          device, results, class_dict, add_indicator_list, 
+                                          save_model=False)
                     
                     add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ] )
                     add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ] )
@@ -269,7 +269,9 @@ def run(device, args):
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
+                    
                     torch.save(net.state_dict(), oj(save_path, results["file_name"] + ".pt"))
+                    print(args.cost_function, results["file_name"]  )
                     sys.exit()
 
 
@@ -293,7 +295,7 @@ def get_args():
     parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
     parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument( "--add_step", type=int, default=0, help="> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated", )
-    parser.add_argument("--progress_folder", "-f", type=str, default="")
+    parser.add_argument("--progress_folder", "-f", type=str, default="") 
     parser.add_argument("--final_patience", "-fp", type=int, default="10")
     
     parser.add_argument("--num_batches", "-nb", type=int, default="64")
@@ -307,7 +309,7 @@ if __name__ == "__main__":
         config.read("../config.ini")
     else:
         config.read("config.ini")
-
+     
     if args.progress_folder != "":
         print("Continuing run")
         progress_folder = args.progress_folder
