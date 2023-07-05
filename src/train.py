@@ -103,7 +103,8 @@ def run(device, args):
     # ensure that the finely annotated images are weighted more heavily such that they make an influence over the training
     # in the end, the finely annotated images weigh as much as the training images
     # this could be adjusted
-    weight_factor =  ( len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
+    weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
+    weight_factor = np.minimum(100, weight_factor)
     weights = [1 for x in range(len(train_set))]
     new_weights = weights
     # if this is a continuation, load the data
@@ -161,7 +162,7 @@ def run(device, args):
     optimizer = optim.Adam( net.parameters(), lr=args.lr, )
 
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255,reduction = 'mean') # xxx
+    criterion = nn.CrossEntropyLoss(ignore_index=255,reduction = 'mean') 
     # 5. Begin training
     best_val_score = 0
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -221,6 +222,7 @@ def run(device, args):
                         os.makedirs(config["PATHS"]["progress_results"])
                    
                     remove_id_list.append(add_list)
+                    # net.load_state_dict(best_weights) 
 
                     my_data.save_progress( net, remove_id_list, x_pool_all[add_ids], config["PATHS"]["progress_results"], args, device, results, class_dict, add_indicator_list, )
                     print(results["file_name"])
