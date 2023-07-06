@@ -1,145 +1,98 @@
 import argparse
-import logging
+import configparser
 import os
-
-import numpy as np
-import torch
-import torch.nn.functional as F
 from PIL import Image
-from torchvision import transforms
-
-from utils.data_loading import BasicDataset
+from os.path import join as oj
+import torch
+torch.backends.cudnn.deterministic = True
+from tqdm import tqdm
+from skimage import io
+import pickle as pkl
+import numpy as np
 from unet import UNet
-from utils.utils import plot_img_and_mask
-
-
-def predict_img(net, full_img, device, scale_factor=1, out_threshold=0.5):
-    # return
-    net.eval()
-    img = torch.from_numpy(full_img / 128 - 128)
-    img = img.unsqueeze(0)
-    img = img.to(device=device, dtype=torch.float32)
-
-    with torch.no_grad():
-        output = net(img)
-
-        if net.n_classes > 1:
-            probs = F.softmax(output, dim=1)[0]
-        else:
-            probs = torch.sigmoid(output)[0]
-
-        # tf = transforms.Compose([
-        #     transforms.ToPILImage(),
-        #     transforms.Resize((full_img.size[1], full_img.size[0])),
-        #     transforms.ToTensor()
-        # ])
-
-        full_mask = probs.squeeze()
-
-    if net.n_classes == 1:
-        return (full_mask > out_threshold).numpy()
-    else:
-        return F.one_hot(full_mask.argmax(dim=0),
-                         net.n_classes).permute(2, 0, 1).numpy()
-
-
 def get_args():
     parser = argparse.ArgumentParser(
-        description='Predict masks from input images')
-    parser.add_argument('--model',
-                        '-m',
-                        default='MODEL.pth',
-                        metavar='FILE',
-                        help='Specify the file in which the model is stored')
-    parser.add_argument('--input',
-                        '-i',
-                        metavar='INPUT',
-                        nargs='+',
-                        help='Filenames of input images',
-                        required=True)
-    parser.add_argument('--output',
-                        '-o',
-                        metavar='OUTPUT',
-                        nargs='+',
-                        help='Filenames of output images')
-    parser.add_argument('--viz',
-                        '-v',
-                        action='store_true',
-                        help='Visualize the images as they are processed')
-    parser.add_argument('--no-save',
-                        '-n',
-                        action='store_true',
-                        help='Do not save the output masks')
-    parser.add_argument(
-        '--mask-threshold',
-        '-t',
-        type=float,
-        default=0.5,
-        help='Minimum probability value to consider a mask pixel white')
-    parser.add_argument('--scale',
-                        '-s',
-                        type=float,
-                        default=0.5,
-                        help='Scale factor for the input images')
-    parser.add_argument('--bilinear',
-                        action='store_true',
-                        default=False,
-                        help='Use bilinear upsampling')
-
+        description="Train the UNet on images and target masks"
+    )
+    parser.add_argument( "--model_name", type=str, default="0469557665", )
+    parser.add_argument("--input_folder", 
+                        "-i", 
+                        type=str, 
+                        default="C:\\Users\\lauri\\Documents\\GitHub\\segmenter\\data\\predict_folder\\LNO.tif") 
+    
+    parser.add_argument("--result_folder", 
+                        "-r", type=str, default="C:\\Users\\lauri\\Documents\\GitHub\\segmenter\\data\\result_folder") 
+    
     return parser.parse_args()
+def run(results, config ):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # make model
+    net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
+    net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")))
+    net.eval()
+
+    # load data
+    im = io.imread(results['input_folder'])
+    #preprocess
+    im = im.astype(np.float32)
+    im = (im - results['data_min']) / (results['data_max'] - results['data_min'])
+
+    #assume that it can handle one image at a time
+    for k in tqdm(range(len(im))):
+        cur_input = im[k]
+        #divide image into parts
+
+        height, width = cur_input.shape
+        complete_output = np.zeros((height, width))
+        for i in range(0,4):
+            for j in range(0,4):
+                cur_cur_input = cur_input[i * height//4:(i+1) * height//4, j * width//4:(j+1) * width//4]
+                cur_cur_input = torch.from_numpy(cur_cur_input).unsqueeze(0).unsqueeze(0).to(device=device)
+                cur_output = net(cur_cur_input)
+                cur_output = cur_output.squeeze(0).argmax(dim=0).cpu().detach().numpy()
+                complete_output[i * height//4:(i+1) * height//4, j * width//4:(j+1) * width//4] =cur_output
+             
+
+        #save output
+        #fill up with zeros
+        complete_output_final = np.zeros_like(complete_output)
+        for val in results['class_dict']:
+            complete_output_final[complete_output == val] = results['class_dict'][val]  
+        cur_image = Image.fromarray(complete_output_final.astype(np.uint8))
+        filename = ''.join(['0' for _ in range(5-len(str(k)))]) + str(k) + ".tif"
+        full_filename = oj(results['result_folder'],filename)
+   
+        cur_image.save(full_filename)
 
 
-def get_output_filenames(args):
-
-    def _generate_name(fn):
-        split = os.path.splitext(fn)
-        return f'{split[0]}_OUT{split[1]}'
-
-    return args.output or list(map(_generate_name, args.input))
+     
 
 
-def mask_to_image(mask: np.ndarray):
-    if mask.ndim == 2:
-        return Image.fromarray((mask * 255).astype(np.uint8))
-    elif mask.ndim == 3:
-        return Image.fromarray(
-            (np.argmax(mask, axis=0) * 255 / mask.shape[0]).astype(np.uint8))
 
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     args = get_args()
-    in_files = args.input
-    out_files = get_output_filenames(args)
+    config = configparser.ConfigParser()
+    if os.path.exists("../config.ini"):
+        config.read("../config.ini")
+    else:
+        config.read("config.ini")
 
-    net = UNet(n_channels=3, n_classes=2, bilinear=args.bilinear)
+     
+    # assume that there is a pkl with the results in this folder
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f'Loading model {args.model}')
-    logging.info(f'Using device {device}')
 
-    net.to(device=device)
-    net.load_state_dict(torch.load(args.model, map_location=device))
 
-    logging.info('Model loaded!')
+    results = pkl.load(open(oj(config["PATHS"]["model_path"], args.model_name + ".pkl"), "rb"))
 
-    for i, filename in enumerate(in_files):
-        logging.info(f'\nPredicting image {filename} ...')
-        img = Image.open(filename)
+    for arg in vars(args):
+        results[str(arg)] = getattr(args, arg)
+    # for laziness, remove
+    if 'data_max' not in results:
+        results['data_max'] = 255.0
+        results['data_min'] = 0.0
+        results['class_dict'] = {0: 26, 1: 64, 2: 204, 3:240, 4:245}
 
-        mask = predict_img(net=net,
-                           full_img=img,
-                           scale_factor=args.scale,
-                           out_threshold=args.mask_threshold,
-                           device=device)
-
-        if not args.no_save:
-            out_filename = out_files[i]
-            result = mask_to_image(mask)
-            result.save(out_filename)
-            logging.info(f'Mask saved to {out_filename}')
-
-        if args.viz:
-            logging.info(
-                f'Visualizing results for image {filename}, close to continue...'
-            )
-            plot_img_and_mask(img, mask)
+    
+    run( results=results, config=config )

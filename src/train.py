@@ -66,7 +66,10 @@ def run(device, args):
 
     # 1. Create dataset
     x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.foldername) )
+    results["class_dict"] = class_dict
     data_min, data_max = np.min(x[:-4]), np.max(x[:-4])
+    results["data_min"] = data_min
+    results["data_max"] = data_max
     x = (x - data_min) / (data_max - data_min)
     results.setdefault("val_scores", [])
     results.setdefault("train_losses", [])
@@ -105,7 +108,7 @@ def run(device, args):
     # this could be adjusted
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
     weight_factor = np.minimum(100, weight_factor)
-    weights = [1 for x in range(len(train_set))]
+    weights = [1 for _ in range(len(train_set))]
     new_weights = weights
     # if this is a continuation, load the data
     remove_id_list = []
@@ -150,11 +153,8 @@ def run(device, args):
         final_val_loader = val_loader
 
     print("Start setting up model")
-
     torch.manual_seed(args.seed)
-
     np.random.seed(args.seed)
- 
     net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
@@ -162,7 +162,7 @@ def run(device, args):
     optimizer = optim.Adam( net.parameters(), lr=args.lr, )
 
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255,reduction = 'mean') 
+    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction = 'mean') 
     # 5. Begin training
     best_val_score = 0
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -219,8 +219,7 @@ def run(device, args):
                 add_list = [x for x in add_ids]
                 if is_human_annotation:
                     if not os.path.exists(config["PATHS"]["progress_results"]):
-                        os.makedirs(config["PATHS"]["progress_results"])
-                   
+                        os.makedirs(config["PATHS"]["progress_results"])    
                     remove_id_list.append(add_list)
                     # net.load_state_dict(best_weights) 
 
@@ -248,6 +247,7 @@ def run(device, args):
                         new_val_set = add_val_set
                     else:
                         new_val_set = ConcatDataset([new_val_set, add_val_set])
+                        
                     new_val_loader = DataLoader( new_val_set, shuffle=False, **loader_args )
                     # weigh the samples such as the total weight of them will be equal to the dataset
                     new_weights = new_weights + [ weight_factor for _ in range(len(add_train_set)) ]
