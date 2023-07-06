@@ -60,13 +60,7 @@ def load_annotated_imgs(data_path, class_dict):
         new_annotations = np.zeros_like(annotations)
         for val in annotation_vals:
             new_annotations[annotations == val] = inverse_class_dict[val]
-        
-    else: # THIS IS ONLY FOR DEBUGGING. IT WILL MESS UP THE TRAINING BAD!!
-        annotations = np.asarray(annotations)
-        new_annotations = np.zeros_like(annotations)
-        for i,val in enumerate(annotation_vals):
-            new_annotations[annotations == val] = list_of_old_vals[np.minimum(i, len(list_of_old_vals)-1)]
-         
+
     return_dataset_train = TensorDataset(
         torch.Tensor(np.asarray([x for x, is_test_val in zip(images, is_test_list) if not is_test_val])[:, None]), 
         torch.Tensor(np.asarray([x for x, is_test_val in zip(new_annotations, is_test_list) if not is_test_val])[:, ]))
@@ -77,38 +71,25 @@ def load_annotated_imgs(data_path, class_dict):
 
     return (return_dataset_train, return_dataset_test)
 
-# def workflow_demo_save(net, images, annotated_images, folder_path, id, device, class_dict, repetition_id):
-#     cur_folder = oj(folder_path, str(id),   str(repetition_id))
-#     make_check_folder(oj(folder_path, (id)),  str(repetition_id))
-#     num_classes = len(class_dict.values())
-#     torch.save(net.state_dict(), oj(cur_folder, 'model', "model_state.pt"))
 
-#     net.eval()
-#     with torch.no_grad():
-#         img_t = torch.Tensor(images).to(device)
-#         predictions = (
-#             net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float)
-#         )
-#         predictions_classes = np.zeros_like(predictions)
-#         for key, val in class_dict.items():
-#             predictions_classes[predictions == key] = val
-
-#     for i in range(len(images)):
-#         im_input = Image.fromarray(images[i, 0])
-#         im_input.save( oj(cur_folder, "images", str(i) + ".tif"), )
-#         im_prediction = Image.fromarray( predictions[ i, ].astype(float)/num_classes )
-#         im_prediction.save( oj(cur_folder, "predictions", str(i) + ".tif"), )
-#         im_annotation = Image.fromarray( (annotated_images[ i, ]).astype(float)/num_classes )
-#         im_annotation.save( oj(cur_folder, "human_annotated", str(i) + ".tif"),
-#         )
-#     return
-def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list, save_model = True):
+def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list, slice_numbers, save_model = True):
     cur_folder = oj(folder_path, results['file_name'])
     make_check_folder(folder_path, results['file_name'])
     if save_model:
 
         torch.save(net.state_dict(), oj(cur_folder, "model_state.pt"))
     pkl.dump(image_idxs, open(oj(cur_folder, "image_idxs.pkl"), "wb"))
+    #if slice number file already exists, append to it
+    if os.path.exists(oj(cur_folder, "slice_numbers.txt")):
+        with open(oj(cur_folder, "slice_numbers.txt"), "a") as f:
+
+            for img_idx, slice_number in zip(image_idxs, slice_numbers):
+                f.write(str(img_idx) + " " + str(slice_number) + "\n")
+    else:
+        with open(oj(cur_folder, "slice_numbers.txt"), "w") as f:
+            for img_idx, slice_number in zip(image_idxs, slice_numbers):
+                f.write(str(img_idx) + " " + str(slice_number) + "\n")
+
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
     pkl.dump(args, open(oj(cur_folder, "args.pkl"), "wb"))
@@ -128,12 +109,15 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
 
     for i in range(len(images)):
         im = Image.fromarray(images[i, 0])
-        im.save( oj(cur_folder, "images", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+        # starting zeros
+        zeros = ''.join(['0' for _ in range(4 - len(str(image_idxs[-1][i])))])
+
+        im.save( oj(cur_folder, "images", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
         im = Image.fromarray( predictions_classes[ i, ] )
-        im.save( oj(cur_folder, "predictions", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+        im.save( oj(cur_folder, "predictions", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
         if debug:
             im = Image.fromarray( entropy[ i, ] )
-            im.save( oj(cur_folder, "entropy", str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+            im.save( oj(cur_folder, "entropy", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
 
     return
 
@@ -142,7 +126,7 @@ def load_full(data_path):
     files = os.listdir(data_path)
 
     im = io.imread(oj(data_path, files[0]))
-    return im[:, 0]
+    return im
 
 
 def load_data(data_path):
@@ -162,7 +146,7 @@ def load_pool_data(data_path, ):
 
     files = os.listdir(data_path)
     file_name = files[0]
-# XXX this is to not load the entire dataset
+    # XXX this is to not load the entire dataset
     im = io.imread(oj(data_path, file_name))[::50]
 
 
@@ -189,6 +173,21 @@ def load_pool_data(data_path, ):
 
 
 
+
+def load_reannotation(data_path, vmax=-1, vmin =-1):
+
+    files = os.listdir(data_path)
+
+    for file_name in files:  # careful: currently depends on order of files
+        im = io.imread(oj(data_path, file_name))
+        # if im.shape[2] == 3:
+        #     im = np.swapaxes(im, 0, 2)
+        # imgs = np.vstack( [ im[:, :1024, :1024], im[:, :1024, 1024:], im[:, 1024:, 1024:], im[:, 1024:, :1024], ] )
+        my_imgs = np.asarray(im)
+        
+
+    my_imgs, num_classes, class_dict = make_classes(my_imgs)
+    return my_imgs, num_classes, class_dict, 
 
 
 def load_layer_data(data_path, vmax=-1, vmin =-1):
@@ -279,10 +278,13 @@ def make_dataset_single(
     x,
     img_size=25,
     offset=20,
+    return_slice_numbers = False
 ):
 
     x_list = []
     img_width = x.shape[-1]
+    if return_slice_numbers:
+        slice_numbers = []
 
     for idx in range(len(x)):
         # for idx in range(1):
@@ -296,9 +298,12 @@ def make_dataset_single(
                 x_list.append(
                     x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
+                if return_slice_numbers:
+                    slice_numbers.append(idx)
 
                 cur_y += offset
             cur_x += offset
     x_return = np.asarray(x_list).astype(float)
-
-    return (x_return,)
+    if return_slice_numbers:
+        return (x_return, np.asarray(slice_numbers))
+    return x_return

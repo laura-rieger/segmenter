@@ -2,9 +2,33 @@
 import torch
 import torch.nn.functional as F
 # from tqdm import tqdm
+import my_data
 import numpy as np
 from utils.dice_score import multiclass_dice_coeff
+def final_evaluate(net, path, device):
+    """ assume that the last four in each dataset are the test. This is highly specific!!"""
+    x,y,num_classes,_ = my_data.load_layer_data(path)
+    x_test, y_test = x[-4:], y[-4:]
+    x, y = x[:-4], y[:-4]  # just don't touch the last four
+    x = x/x.max()
+    x_test = x_test/x_test.max()
 
+    net.eval()
+  
+
+
+    y_pred = []
+    for i in range(len(x_test)):
+        y_pred_nu = net(torch.Tensor(x_test[i]).unsqueeze(0).to(device)).cpu().detach().numpy()
+        y_pred.append(y_pred_nu)
+    y_pred = np.asarray(y_pred).squeeze().argmax(axis=1)
+    y_pred_one_hot = torch.nn.functional.one_hot(torch.Tensor(y_pred).to(torch.int64), 
+                                                num_classes=num_classes).permute(0, 3, 1, 2)
+    result = multiclass_dice_coeff(y_pred_one_hot.float(), 
+                        torch.Tensor(y_test), 
+                        num_classes=num_classes).item()
+        
+    return result
 
 def random_cost(net, device, loader, n_choose=-1):
     idxs = np.arange(len(loader.dataset))
@@ -38,7 +62,19 @@ def cut_off_cost(net, device, loader, percentile=.5,  n_choose=-1):
         return np.argsort(std_arr)
     else:
         return np.argsort(std_arr)[-n_choose:]
+def give_results(net, device, loader, ):
+    output_list = []
+    net.eval()
+    with torch.no_grad():
+        for i, image in enumerate(loader):  # we only use the images, not the labels
 
+            image = image[0].to(device)
+            output = F.softmax(net.forward(image), dim=1).argmax(dim= 1)
+            # print(output.shape)
+            output_list.append(output.detach().cpu().numpy())
+
+
+    return np.asarray(output_list).squeeze()
 def uncertainty_cost(net, device, loader, n_choose=-1):
 
     std_arr = -4 * np.ones((len(loader.dataset)))
@@ -48,9 +84,7 @@ def uncertainty_cost(net, device, loader, n_choose=-1):
 
             image = image[0].to(device)
             output = F.softmax(net.forward(image), dim=1)[:,:, 2:-2, 2:-2]
-            entropy  = -torch.sum(output * torch.log(output), dim=1).mean(axis=(1,2)).detach().cpu().numpy()
- 
-         
+            entropy = -torch.sum(output * torch.log(output), dim=1).mean(axis=(1,2)).detach().cpu().numpy()
             std_arr[
                 i * loader.batch_size: i * loader.batch_size + len(output)
             ] = entropy

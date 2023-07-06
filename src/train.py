@@ -94,7 +94,11 @@ def run(device, args):
     if is_human_annotation:
         x_pool = my_data.load_pool_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool = (x_pool.astype(np.float16) - data_min) / (data_max - data_min)
-        x_pool_all = my_data.make_dataset_single( x_pool, img_size=args.image_size, offset=args.image_size, )[0]
+        x_pool_all, slice_numbers = my_data.make_dataset_single( x_pool, 
+                                                 img_size=args.image_size, 
+                                                 offset=args.image_size,
+                                                  return_slice_numbers= True )
+     
         pool_set = TensorDataset(torch.Tensor(x_pool_all))
 
     else:
@@ -119,6 +123,7 @@ def run(device, args):
         for remove_ids in remove_id_list:
             cur_remove_list = [x for x in remove_ids] # useless
             pool_ids = np.delete(pool_ids, cur_remove_list, axis=0)
+            slice_numbers = np.delete(slice_numbers, cur_remove_list, axis=0)
         x_pool_all = x_pool_all[pool_ids]
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), ] )
         (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, )
@@ -223,7 +228,13 @@ def run(device, args):
                     remove_id_list.append(add_list)
                     # net.load_state_dict(best_weights) 
 
-                    my_data.save_progress( net, remove_id_list, x_pool_all[add_ids], config["PATHS"]["progress_results"], args, device, results, class_dict, add_indicator_list, )
+                    my_data.save_progress( net, 
+                                          remove_id_list, 
+                                          x_pool_all[add_ids], 
+                                          config["PATHS"]["progress_results"], 
+                                          args, 
+                                          device, 
+                                          results, class_dict, add_indicator_list,slice_numbers )
                     print(results["file_name"])
                     sys.exit()
                 else:
@@ -290,7 +301,7 @@ def get_args():
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno", )
+    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )

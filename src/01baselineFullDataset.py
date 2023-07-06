@@ -11,15 +11,15 @@ params_to_vary = {
         "BaselineFullDatasetSGD",
     ],
     "learningrate": [ 0.001,  ],
-    "seed": [x for x in range(1)],
-    "cost_function": ["uncertainty_cost",],
+    "seed": [x for x in range(3)],
+    "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128],
     "foldername": [
         "lno",
     ],
     "poolname": [
-        "lno", # "lno_human",
+        "lno","graphite" # "lno_human",
     ],
     "epochs": [
         300,

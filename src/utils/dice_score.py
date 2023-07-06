@@ -1,6 +1,6 @@
 import torch
 from torch import Tensor
-
+import numpy as np
 
 def dice_coeff(
     input: Tensor, target: Tensor, target_is_mask, reduce_batch_first: bool = False, epsilon=1e-6, 
@@ -31,6 +31,28 @@ def dice_coeff(
         for i in range(input.shape[0]):
             dice += dice_coeff(input[i, ...], target[i, ...], target_is_mask[i])
         return dice / input.shape[0]
+def multiclass_dice_coeff_np(
+    input: np.ndarray,
+    target: np.ndarray,
+    num_classes: int,
+    reduce_batch_first: bool = False,
+    epsilon=1e-6, 
+):
+    # Average of Dice coefficient for all classes
+    # assert input.size() == target.size()
+    dice = 0
+    mask_val = 255
+    for channel in range(num_classes):
+        dice += dice_coeff(
+            input[:, channel, ...],
+            (target == channel).astype(np.float),
+            target != mask_val,
+            reduce_batch_first=reduce_batch_first,
+            epsilon=epsilon,
+        )
+
+    return dice / input.shape[1]
+
 
 
 def multiclass_dice_coeff(
@@ -45,13 +67,16 @@ def multiclass_dice_coeff(
     dice = 0
     mask_val = 255
     for channel in range(num_classes):
-        dice += dice_coeff(
+        new_dice = dice_coeff(
             input[:, channel, ...],
             (target == channel).float(),
             target != mask_val,
             reduce_batch_first=reduce_batch_first,
             epsilon=epsilon,
         )
+        print
+        dice += new_dice
+  
 
     return dice / input.shape[1]
 
