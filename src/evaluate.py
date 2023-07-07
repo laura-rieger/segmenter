@@ -5,21 +5,15 @@ import torch.nn.functional as F
 import my_data
 import numpy as np
 from utils.dice_score import multiclass_dice_coeff
-def final_evaluate(net, x, y, num_classes, device):
-
-    # x,y,num_classes,_ = my_data.load_layer_data(path)
-    # x_test, y_test = x[-4:], y[-4:]
-    # x, y = x[:-4], y[:-4]  # just don't touch the last four
-    # x = x/x.max()
-    # x_test = x_test/x_test.max()
+def final_evaluate(net, x_test, y_test, num_classes, device):
 
     net.eval()
-  
+ 
 
 
     y_pred = []
-    for i in range(len(x)):
-        y_pred_nu = net(torch.Tensor(x[i]).unsqueeze(0).to(device)).cpu().detach().numpy()
+    for i in range(len(x_test)):
+        y_pred_nu = net(torch.Tensor(x_test[i]).unsqueeze(0).to(device)).cpu().detach().numpy()
         y_pred.append(y_pred_nu)
     y_pred = np.asarray(y_pred).squeeze().argmax(axis=1)
     y_pred_one_hot = torch.nn.functional.one_hot(torch.Tensor(y_pred).to(torch.int64), 
@@ -62,50 +56,50 @@ def cut_off_cost(net, device, loader, percentile=.5,  n_choose=-1):
         return np.argsort(std_arr)
     else:
         return np.argsort(std_arr)[-n_choose:]
-def give_results(net, device, loader, ):
-    output_list = []
-    net.eval()
-    with torch.no_grad():
-        for i, image in enumerate(loader):  # we only use the images, not the labels
+# def give_results(net, device, loader, ):
+#     output_list = []
+#     net.eval()
+#     with torch.no_grad():
+#         for i, image in enumerate(loader):  # we only use the images, not the labels
 
-            image = image[0].to(device)
-            output = F.softmax(net.forward(image), dim=1).argmax(dim= 1)
-            # print(output.shape)
-            output_list.append(output.detach().cpu().numpy())
+#             image = image[0].to(device)
+#             output = F.softmax(net.forward(image), dim=1).argmax(dim= 1)
+#             # print(output.shape)
+#             output_list.append(output.detach().cpu().numpy())
 
 
-    return np.asarray(output_list).squeeze()
+#     return np.asarray(output_list).squeeze()
 
 
 
 
 #make a new function that takes in net, data loader, device and criterion and returns the loss
-def evaluate_loss(net, device, loader, criterion):
-    tot_loss = 0
-    net.eval()
-    with torch.no_grad():
-        for i, (image, mask) in enumerate(loader):  
+# def evaluate_loss(net, device, loader, criterion):
+#     tot_loss = 0
+#     net.eval()
+#     with torch.no_grad():
+#         for i, (image, mask) in enumerate(loader):  
 
-            image = image.to(device, dtype=torch.float32)
-            mask = mask.to(device, dtype=torch.long)
+#             image = image.to(device, dtype=torch.float32)
+#             mask = mask.to(device, dtype=torch.long)
 
-            output = net.forward(image)
-            loss = criterion(output, mask)
-            tot_loss += loss.item()
-    return tot_loss / len(loader.dataset)
+#             output = net.forward(image)
+#             loss = criterion(output, mask)
+#             tot_loss += loss.item()
+#     return tot_loss / len(loader.dataset)
 
-def evaluate(net, dataloader, device, num_classes, criterion, use_dice_score_only=False):
+def evaluate(net, dataloader, device, num_classes, criterion):
     net.eval()
     num_val_batches = len(dataloader)
     dice_score = 0
 
     # iterate over the validation set
-    crit_loss = 0
+
     for (image, mask_true) in dataloader:
 
         image = image.to(device=device, dtype=torch.float32)
         mask_true = mask_true.to(device=device, dtype=torch.long)
-        crit_loss = 0
+
         with torch.no_grad():
 
             mask_pred = net(image)
@@ -114,8 +108,7 @@ def evaluate(net, dataloader, device, num_classes, criterion, use_dice_score_onl
                 .permute(0, 3, 1, 2)
                 .float()
             )
-            crit_loss += criterion(mask_pred, mask_true).item()
-            
+        
             # compute the Dice score, which is a metric for segmentation
             dice_score += multiclass_dice_coeff(
                 mask_pred_out[:, :, ...],
@@ -126,11 +119,8 @@ def evaluate(net, dataloader, device, num_classes, criterion, use_dice_score_onl
 
     net.train()
 
-    # Fixes a potential division by zero error
-    if use_dice_score_only:
-        return dice_score / num_val_batches
     if num_val_batches == 0:
-        return (crit_loss+1-dice_score)
+        return (dice_score)
     # print(crit_loss* dataloader.batch_size/num_val_batches, dice_score/ num_val_batches)
     
-    return 1 - (crit_loss * dataloader.batch_size-dice_score) / num_val_batches
+    return dice_score / num_val_batches

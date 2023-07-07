@@ -7,7 +7,7 @@ params_to_vary = {
     "experiment_name": [ "humanLabelled", ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
-    "cost_function": [ "uncertainty_cost", ], 
+    "cost_function": [ "cut_off_cost", ], 
     "add_ratio": [ 0.02, ], # what proportion of the pool is added to the training set
     'poolname' : ['voltif_LNO'],
     "batch-size": [128],

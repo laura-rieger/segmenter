@@ -8,7 +8,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BaselineFullDatasetSGD",
+        "FullDataset",
     ],
     "learningrate": [ 0.001,  ],
     "seed": [x for x in range(3)],
@@ -19,7 +19,7 @@ params_to_vary = {
         "lno",
     ],
     "poolname": [
-        "lno","graphite" # "lno_human",
+        "lno", # "lno_human",
     ],
     "epochs": [
         300,

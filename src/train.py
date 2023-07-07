@@ -52,7 +52,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
        
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss + loss_dice).backward()
-                # print('ratio', +loss.item()/loss_dice.item())
+              
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
                 epoch_loss += loss.item()
@@ -76,6 +76,7 @@ def run(device, args):
     results.setdefault("val_scores", [])
     results.setdefault("train_losses", [])
     results.setdefault("num_classes", num_classes)
+
 
     x, y = x[:-4], y[:-4]  # #  don't touch the last full image - left for test
 
@@ -147,6 +148,8 @@ def run(device, args):
     if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ( "lno" in args.foldername or "LNO" in args.foldername ):
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
+        x_test, y_test = x_final[-4:], y_final[-4:]  # just don't touch the last four
+        x_test = (x_test - data_min) / (data_max - data_min)
         x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
         x_final = (x_final - data_min) / (data_max - data_min)
         all_idxs_final = np.arange(len(x_final))
@@ -167,20 +170,16 @@ def run(device, args):
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
     optimizer = optim.Adam( net.parameters(), lr=args.lr, )
-
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255, reduction = 'mean') 
     # 5. Begin training
-    best_val_score = 1000
+    best_val_score = 0
     best_weights = None
 
     patience = args.final_patience if args.add_step == 0 else args.add_step
-
-    print("Patience is: " + str(patience))
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
-
     tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     init_epochs = len(
         results["val_scores"]
@@ -198,27 +197,23 @@ def run(device, args):
         results["train_losses"].append(train_loss)
 
         # if the add step is unequal zero, just count up and add samples every add step
-        if val_score < best_val_score:
+        if val_score > best_val_score:
          
             best_val_score = val_score
             best_weights = deepcopy(net.state_dict())
             cur_patience = 0
         else:
             cur_patience += 1
-            # print current patience
-            # print("Current patience is: " + str(cur_patience))
 
         if cur_patience >= patience or epoch == args.epochs:
 
-            net.load_state_dict(best_weights)
+            # net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
                 cur_patience = 0
 
                 add_ids = cost_function( net, device, pool_loader, n_choose=args.add_size )
-                # add images to the validation set as well
-                # unless it only adds one image at the time, then obviously add that to the training set
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
 
                 add_train_ids = add_ids[:-num_val_add]
@@ -242,16 +237,6 @@ def run(device, args):
                     sys.exit()
                 else:
                     
-                    #only to determine 
-                    # remove_id_list.append(add_list)
-                    # my_data.save_progress(net, 
-                    #                       remove_id_list, 
-                    #                       x_pool_all[add_ids], 
-                    #                       config["PATHS"]["progress_results"], 
-                    #                       args, 
-                    #                       device, results, class_dict, add_indicator_list, 
-                    #                       save_model=False)
-                    
                     add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), 
                                                      torch.Tensor(y_pool_all[add_train_ids]), ] )
                     add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), 
@@ -274,7 +259,7 @@ def run(device, args):
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
                     pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
-                    best_val_score = 10000
+                    best_val_score = 0
                     best_weights = None
                     print( "Added {} samples to the training set".format( len(add_train_ids) ) )
             else:
@@ -283,12 +268,24 @@ def run(device, args):
                     patience = args.final_patience
                     print("Patience increased to {} for final training".format(patience))
                 else:
-                    # net.load_state_dict(best_weights)
+                    net.load_state_dict(best_weights)
                     net.eval()
 
                     results["final_dice_score"] = evaluate.evaluate( net, final_val_loader, device, 
-                                                                    num_classes, criterion, 
-                                                                    use_dice_score_only = True)
+                                                                    num_classes, criterion)
+                    #xxxx not for graphite
+                    #load data again
+                    if 'lno' in args.dataset.lower():
+                        x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
+                        x_test, y_test = x[-4:], y[-4:]
+                        x_test = (x_test - data_min) / (data_max - data_min)
+
+                        results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 
+                                                                            num_classes, device)
+                        # print(results["test_dice_score"])
+
+
+
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
