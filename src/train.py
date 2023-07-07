@@ -165,13 +165,13 @@ def run(device, args):
     print("Start setting up model")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
+    net = UNet(n_channels=1, n_classes=results["num_classes"] ).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
-    optimizer = optim.Adam( net.parameters(), lr=args.lr, )
+    optimizer = optim.Adam(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction = 'mean') 
+    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean') 
     # 5. Begin training
     best_val_score = 0
     best_weights = None
@@ -207,12 +207,11 @@ def run(device, args):
 
         if cur_patience >= patience or epoch == args.epochs:
 
-            # net.load_state_dict(best_weights)
+            net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
                 cur_patience = 0
-
                 add_ids = cost_function( net, device, pool_loader, n_choose=args.add_size )
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
 
@@ -301,11 +300,11 @@ def get_args():
     )
     parser.add_argument("--epochs", "-e", type=int, default=2)
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
-    parser.add_argument( "--cost_function", dest="cost_function", type=str, default="uncertainty_cost", )
+    parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )

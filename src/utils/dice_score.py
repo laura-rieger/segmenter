@@ -53,7 +53,7 @@ def multiclass_dice_coeff(
             reduce_batch_first=reduce_batch_first,
             epsilon=epsilon,
         )
-        print
+        
         dice += new_dice
   
 
