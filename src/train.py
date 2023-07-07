@@ -275,7 +275,7 @@ def run(device, args):
                                                                     num_classes, criterion)
                     #xxxx not for graphite
                     #load data again
-                    if 'lno' in args.dataset.lower():
+                    if 'lno' in args.foldername.lower():
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
                         x_test, y_test = x[-4:], y[-4:]
                         x_test = (x_test - data_min) / (data_max - data_min)
