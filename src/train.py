@@ -49,14 +49,16 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 # rn calculating array size each iteration - should change to once
                 loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
                 loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
+       
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss + loss_dice).backward()
+                # print('ratio', +loss.item()/loss_dice.item())
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
                 epoch_loss += loss.item()
         if i >= num_batches:
             break
-    return epoch_loss / (num_batches * train_loader.batch_size)  # len(train_loader)
+    return epoch_loss / (num_batches )  # len(train_loader)
 
 
 def run(device, args):
@@ -169,14 +171,13 @@ def run(device, args):
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255, reduction = 'mean') 
     # 5. Begin training
-    best_val_score = 0
+    best_val_score = 1000
+    best_weights = None
+
     patience = args.final_patience if args.add_step == 0 else args.add_step
-    patience_delta = 0.00
 
     print("Patience is: " + str(patience))
     cur_patience = 0
-    best_weights = None
-    epoch = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
@@ -186,28 +187,30 @@ def run(device, args):
     )  # if this is in progress, we start at the current epoch
     for epoch in tqdm(range(init_epochs, args.epochs + 1), total=tqdm_total):
         train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, args.num_batches)
-        val_score = evaluate.evaluate(net, val_loader, device, num_classes).item()
+        val_score = evaluate.evaluate(net, val_loader, device, num_classes, criterion)
         if new_val_set is not None:
-            new_val_score = evaluate.evaluate( net, new_val_loader, device, num_classes).item()
+            new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes, criterion)
             # if the new val set is not none, we need to weigh the scores
             val_score = ( val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor ) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
         results["val_scores"].append(val_score)
         # print length of val scores
-        print(results["val_scores"][-1])
+        # print(results["val_scores"][-1])
         results["train_losses"].append(train_loss)
 
         # if the add step is unequal zero, just count up and add samples every add step
-        if val_score > best_val_score + patience_delta:
+        if val_score < best_val_score:
+         
             best_val_score = val_score
             best_weights = deepcopy(net.state_dict())
             cur_patience = 0
         else:
             cur_patience += 1
             # print current patience
-            print("Current patience is: " + str(cur_patience))
+            # print("Current patience is: " + str(cur_patience))
 
         if cur_patience >= patience or epoch == args.epochs:
-            # net.load_state_dict(best_weights)
+
+            net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
@@ -226,7 +229,7 @@ def run(device, args):
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])    
                     remove_id_list.append(add_list)
-                    # net.load_state_dict(best_weights) 
+                    net.load_state_dict(best_weights) 
 
                     my_data.save_progress( net, 
                                           remove_id_list, 
@@ -249,8 +252,10 @@ def run(device, args):
                     #                       device, results, class_dict, add_indicator_list, 
                     #                       save_model=False)
                     
-                    add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), torch.Tensor(y_pool_all[add_train_ids]), ] )
-                    add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), torch.Tensor(y_pool_all[add_val_ids]), ] )
+                    add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), 
+                                                     torch.Tensor(y_pool_all[add_train_ids]), ] )
+                    add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), 
+                                                   torch.Tensor(y_pool_all[add_val_ids]), ] )
 
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
       
@@ -269,7 +274,7 @@ def run(device, args):
                     y_pool_all = np.delete(y_pool_all, add_ids, axis=0)
                     pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
-                    best_val_score = 0
+                    best_val_score = 10000
                     best_weights = None
                     print( "Added {} samples to the training set".format( len(add_train_ids) ) )
             else:
@@ -278,10 +283,12 @@ def run(device, args):
                     patience = args.final_patience
                     print("Patience increased to {} for final training".format(patience))
                 else:
-                    net.load_state_dict(best_weights)
+                    # net.load_state_dict(best_weights)
                     net.eval()
 
-                    results["final_dice_score"] = evaluate.evaluate( net, final_val_loader, device, num_classes).item()
+                    results["final_dice_score"] = evaluate.evaluate( net, final_val_loader, device, 
+                                                                    num_classes, criterion, 
+                                                                    use_dice_score_only = True)
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
@@ -320,6 +327,7 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+
     config = configparser.ConfigParser()
     if os.path.exists("../config.ini"):
         config.read("../config.ini")
