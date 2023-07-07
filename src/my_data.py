@@ -147,7 +147,7 @@ def load_pool_data(data_path, ):
     files = os.listdir(data_path)
     file_name = files[0]
     # XXX this is to not load the entire dataset
-    im = io.imread(oj(data_path, file_name))[::50]
+    im = io.imread(oj(data_path, file_name))#[::50]
 
 
     if im.shape[2] == 3: # rgb
