@@ -67,7 +67,7 @@ def run(device, args):
     # 1. Create dataset
     x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.foldername) )
     results["class_dict"] = class_dict
-    data_min, data_max = np.min(x[:-4]), np.max(x[:-4])
+    data_min, data_max = np.min(x[:-1]), np.max(x[:-1])
     results["data_min"] = data_min
     results["data_max"] = data_max
     x = (x - data_min) / (data_max - data_min)
@@ -76,7 +76,7 @@ def run(device, args):
     results.setdefault("num_classes", num_classes)
 
 
-    x, y = x[:-4], y[:-4]  # #  don't touch the last full image - left for test
+    x, y = x[:-1], y[:-1]  # #  don't touch the last full image - left for test
 
     all_idxs = np.arange(len(x))
     np.random.seed(0)
@@ -106,7 +106,7 @@ def run(device, args):
     else:
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool = (x_pool - data_min) / (data_max - data_min)
-        x_pool, y_pool = x_pool[:-4], y_pool[:-4]
+        x_pool, y_pool = x_pool[:-1], y_pool[:-1]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
 
@@ -145,9 +145,9 @@ def run(device, args):
     if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ( "lno" in args.foldername.lower() ):
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
-        x_test, y_test = x_final[-4:], y_final[-4:]  
+        x_test, y_test = x_final[-1:], y_final[-1:]  
         x_test = (x_test - data_min) / (data_max - data_min)
-        x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
+        x_final, y_final = x_final[:-1], y_final[:-1]  # just don't touch the last image
         x_final = (x_final - data_min) / (data_max - data_min)
         all_idxs_final = np.arange(len(x_final))
         np.random.seed(0)
@@ -274,7 +274,8 @@ def run(device, args):
                     #load data again
                     if 'lno' in args.foldername.lower():
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
-                        x_test, y_test = x[-4:], y[-4:]
+                        x_test, y_test = x[-1:], y[-1:]
+                        x_test, y_test = my_data.stack_imgs(x_test, y_test)
                         x_test = (x_test - data_min) / (data_max - data_min)
 
                         results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 

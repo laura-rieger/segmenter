@@ -146,23 +146,23 @@ def load_pool_data(data_path, ):
 
     files = os.listdir(data_path)
     file_name = files[0]
-    # XXX this is to not load the entire dataset
-    im = io.imread(oj(data_path, file_name))#[::50]
+
+    im = io.imread(oj(data_path, file_name))
 
 
     if im.shape[2] == 3: # rgb
         im = np.swapaxes(im, 0, 2)
-    imgs = np.vstack(
-        [
-            im[:, :1024, :1024],
-            im[:, :1024, 1024:],
-            im[:, 1024:, 1024:],
-            im[:, 1024:, :1024],
-        ]
-    )
-    del im
+    # imgs = np.vstack(
+    #     [
+    #         im[:, :1024, :1024],
+    #         im[:, :1024, 1024:],
+    #         im[:, 1024:, 1024:],
+    #         im[:, 1024:, :1024],
+    #     ]
+    # )
+    # del im
 
-    my_imgs = np.asarray(imgs)
+    my_imgs = np.asarray(im)
 
     # my_imgs = my_imgs.astype(np.float)
 
@@ -180,15 +180,17 @@ def load_reannotation(data_path, vmax=-1, vmin =-1):
 
     for file_name in files:  # careful: currently depends on order of files
         im = io.imread(oj(data_path, file_name))
-        # if im.shape[2] == 3:
-        #     im = np.swapaxes(im, 0, 2)
-        # imgs = np.vstack( [ im[:, :1024, :1024], im[:, :1024, 1024:], im[:, 1024:, 1024:], im[:, 1024:, :1024], ] )
         my_imgs = np.asarray(im)
         
 
     my_imgs, num_classes, class_dict = make_classes(my_imgs)
     return my_imgs, num_classes, class_dict, 
-
+def stack_imgs(x,y):
+    x_return = np.vstack( [ x[:, :, :1024, :1024], x[:, :,  :1024, 1024:], 
+                           x[:, :, 1024:, 1024:], x[:, :, 1024:, :1024], ] )
+    y_return = np.vstack( [ y[:, :1024, :1024], y[:, :1024, 1024:], 
+                           y[:,  1024:, 1024:], y[:,  1024:, :1024], ] )
+    return x_return, y_return
 
 def load_layer_data(data_path, vmax=-1, vmin =-1):
     files = sorted(os.listdir(data_path))
@@ -200,16 +202,16 @@ def load_layer_data(data_path, vmax=-1, vmin =-1):
         im = io.imread(oj(data_path, file_name))
         if im.shape[2] == 3:
             im = np.swapaxes(im, 0, 2)
-        imgs = np.vstack(
-            [
-                im[:, :1024, :1024],
-                im[:, :1024, 1024:],
-                im[:, 1024:, 1024:],
-                im[:, 1024:, :1024],
-            ]
-        )
+        # imgs = np.vstack(
+        #     [
+        #         im[:, :1024, :1024],
+        #         im[:, :1024, 1024:],
+        #         im[:, 1024:, 1024:],
+        #         im[:, 1024:, :1024],
+        #     ]
+        # )
 
-        my_imgs = np.asarray(imgs)
+        my_imgs = np.asarray(im)
         
 
         my_data.append(my_imgs)
@@ -299,7 +301,7 @@ def make_dataset_single(
                     x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
                 if return_slice_numbers:
-                    slice_numbers.append((idx//4))
+                    slice_numbers.append((idx,  int(cur_x + img_size/2), int(cur_y+ img_size/2)))
 
                 cur_y += offset
             cur_x += offset
