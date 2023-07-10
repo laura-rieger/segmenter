@@ -10,7 +10,7 @@ params_to_vary = {
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
     "cost_function": [ 'cut_off_cost',], 
-    "add_ratio": [0.01, .02],
+    "add_ratio": [0.05,],
     'poolname' : ['lno'],
     "batch-size": [128],
 

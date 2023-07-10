@@ -83,12 +83,12 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
     if os.path.exists(oj(cur_folder, "slice_numbers.txt")):
         with open(oj(cur_folder, "slice_numbers.txt"), "a") as f:
 
-            for img_idx, slice_number in zip(image_idxs, slice_numbers):
-                f.write(str(img_idx) + " " + str(slice_number) + "\n")
+            for img_idx in image_idxs[-1]:
+                f.write(str(img_idx) + " " + str(slice_numbers[img_idx]) + "\n")
     else:
         with open(oj(cur_folder, "slice_numbers.txt"), "w") as f:
-            for img_idx, slice_number in zip(image_idxs, slice_numbers):
-                f.write(str(img_idx) + " " + str(slice_number) + "\n")
+            for img_idx in image_idxs[-1]:
+                f.write(str(img_idx) + " " + str(slice_numbers[img_idx]) + "\n")
 
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
@@ -299,7 +299,7 @@ def make_dataset_single(
                     x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
                 if return_slice_numbers:
-                    slice_numbers.append(idx)
+                    slice_numbers.append((idx//4))
 
                 cur_y += offset
             cur_x += offset

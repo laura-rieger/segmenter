@@ -49,16 +49,14 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 # rn calculating array size each iteration - should change to once
                 loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
                 loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
-       
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss + loss_dice).backward()
-              
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
                 epoch_loss += loss.item()
         if i >= num_batches:
             break
-    return epoch_loss / (num_batches )  # len(train_loader)
+    return epoch_loss / (num_batches )  
 
 
 def run(device, args):
@@ -87,6 +85,7 @@ def run(device, args):
     n_train = len(x) - n_val
     all_train_idxs = all_idxs[:n_train]
     val_idxs = all_idxs[n_train:]
+    
     init_train_idxs = all_train_idxs
     train_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset(x[init_train_idxs], y[init_train_idxs], img_size=args.image_size, offset=args.offset, ) ] )
     val_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset(x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.offset, ) ] )
@@ -110,9 +109,7 @@ def run(device, args):
         x_pool, y_pool = x_pool[:-4], y_pool[:-4]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
-    # ensure that the finely annotated images are weighted more heavily such that they make an influence over the training
-    # in the end, the finely annotated images weigh as much as the training images
-    # this could be adjusted
+
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
     weight_factor = np.minimum(100, weight_factor)
     weights = [1 for _ in range(len(train_set))]
@@ -145,10 +142,10 @@ def run(device, args):
     val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
 
     # if this is the specific lno dataset, we have a fully annotated dataset that we can use for validation
-    if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ( "lno" in args.foldername or "LNO" in args.foldername ):
+    if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ( "lno" in args.foldername.lower() ):
         # load the fully annotated data to get the final evaluation on unseen "real" data
         x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
-        x_test, y_test = x_final[-4:], y_final[-4:]  # just don't touch the last four
+        x_test, y_test = x_final[-4:], y_final[-4:]  
         x_test = (x_test - data_min) / (data_max - data_min)
         x_final, y_final = x_final[:-4], y_final[:-4]  # just don't touch the last four
         x_final = (x_final - data_min) / (data_max - data_min)
@@ -177,6 +174,7 @@ def run(device, args):
     best_weights = None
 
     patience = args.final_patience if args.add_step == 0 else args.add_step
+
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
@@ -281,7 +279,7 @@ def run(device, args):
 
                         results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 
                                                                             num_classes, device)
-                        # print(results["test_dice_score"])
+                   
 
 
 
@@ -304,7 +302,7 @@ def get_args():
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno", )
+    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
