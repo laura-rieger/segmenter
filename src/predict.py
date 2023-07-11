@@ -14,12 +14,9 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Train the UNet on images and target masks"
     )
-    parser.add_argument( "--model_name", type=str, default="0469557665", )
-    parser.add_argument("--input_folder", 
-                        "-i", 
-                        type=str, 
+    parser.add_argument( "--model_name", type=str, default="9480060078", )
+    parser.add_argument("--input_folder", "-i", type=str, 
                         default="C:\\Users\\lauri\\Documents\\GitHub\\segmenter\\data\\predict_folder\\LNO.tif") 
-    
     parser.add_argument("--result_folder", 
                         "-r", type=str, default="C:\\Users\\lauri\\Documents\\GitHub\\segmenter\\data\\result_folder") 
     
@@ -28,7 +25,11 @@ def run(results, config ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # make model
     net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
-    net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")))
+    #check if there is a model
+    if os.path.exists(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")):
+        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")))
+    else:
+        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'], "model_state.pt")))
     net.eval()
 
     # load data
@@ -81,18 +82,14 @@ if __name__ == "__main__":
 
      
     # assume that there is a pkl with the results in this folder
-
-
-
-    results = pkl.load(open(oj(config["PATHS"]["model_path"], args.model_name + ".pkl"), "rb"))
-
-    for arg in vars(args):
+    # check if the name isa folder
+    if os.path.isdir(oj(config["PATHS"]["model_path"], args.model_name)):
+        results = pkl.load(open(oj(config["PATHS"]["model_path"], args.model_name, "results.pkl"), "rb"))
+    else:
+        results = pkl.load(open(oj(config["PATHS"]["model_path"], args.model_name + ".pkl"), "rb"))
+    for arg in vars(args):  
+        print(arg)   
         results[str(arg)] = getattr(args, arg)
-    # for laziness, remove
-    if 'data_max' not in results:
-        results['data_max'] = 255.0
-        results['data_min'] = 0.0
-        results['class_dict'] = {0: 26, 1: 64, 2: 204, 3:240, 4:245}
 
     
     run( results=results, config=config )
