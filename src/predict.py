@@ -35,12 +35,11 @@ def run(results, config ):
     # load data
     im = io.imread(results['input_folder'])
     #preprocess
-    im = im.astype(np.float32)
-    im = (im - results['data_min']) / (results['data_max'] - results['data_min'])
 
     #assume that it can handle one image at a time
     for k in tqdm(range(len(im))):
-        cur_input = im[k]
+        cur_input = (np.copy(im[k]).astype(np.float32)- results['data_min']) / (results['data_max'] - results['data_min'])
+     
         #divide image into parts
 
         height, width = cur_input.shape
