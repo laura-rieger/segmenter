@@ -77,7 +77,7 @@ def run(device, args):
 
 
     x, y = x[:-1], y[:-1]  # #  don't touch the last full image - left for test
-
+    x, y = x[:5], y[:5]  # for lno, pretend that we have the same dataset as full just not fully annotated
     all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
@@ -111,7 +111,7 @@ def run(device, args):
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
 
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
-    weight_factor = np.minimum(100, weight_factor)
+    weight_factor =  np.minimum(100, weight_factor)
     weights = [1 for _ in range(len(train_set))]
     new_weights = weights
     # if this is a continuation, load the data
@@ -142,22 +142,7 @@ def run(device, args):
     val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
 
     # if this is the specific lno dataset, we have a fully annotated dataset that we can use for validation
-    if os.path.exists(oj(config["DATASET"]["data_path"], "lno")) and ( "lno" in args.foldername.lower() ):
-        # load the fully annotated data to get the final evaluation on unseen "real" data
-        x_final, y_final, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], "lno") )
-        x_test, y_test = x_final[-1:], y_final[-1:]  
-        x_test = (x_test - data_min) / (data_max - data_min)
-        x_final, y_final = x_final[:-1], y_final[:-1]  # just don't touch the last image
-        x_final = (x_final - data_min) / (data_max - data_min)
-        all_idxs_final = np.arange(len(x_final))
-        np.random.seed(0)
-        np.random.shuffle(all_idxs_final)
-        n_val_final = np.maximum(int(len(x_final) * args.val / 100), 1)
-        val_idxs_final = all_idxs_final[-n_val_final:]
-        val_set_final = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset( x_final[val_idxs_final], y_final[val_idxs_final], img_size=args.image_size, offset=args.image_size, ) ] )
-        final_val_loader = DataLoader( val_set_final, shuffle=False, drop_last=False, **loader_args )
-    else:
-        final_val_loader = val_loader
+
 
     print("Start setting up model")
     torch.manual_seed(args.seed)
@@ -205,7 +190,7 @@ def run(device, args):
 
         if cur_patience >= patience or epoch == args.epochs:
 
-            net.load_state_dict(best_weights)
+            # net.load_state_dict(best_weights)
             net.eval()
 
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
@@ -223,7 +208,7 @@ def run(device, args):
                     remove_id_list.append(add_list)
                     net.load_state_dict(best_weights) 
 
-                    my_data.save_progress( net, 
+                    my_data.save_progress(net, 
                                           remove_id_list, 
                                           x_pool_all[add_ids], 
                                           config["PATHS"]["progress_results"], 
@@ -268,7 +253,7 @@ def run(device, args):
                     net.load_state_dict(best_weights)
                     net.eval()
 
-                    results["final_dice_score"] = evaluate.evaluate( net, final_val_loader, device, 
+                    results["final_dice_score"] = evaluate.evaluate( net, val_loader, device, 
                                                                     num_classes, criterion)
                     #xxxx not for graphite
                     #load data again
@@ -303,7 +288,7 @@ def get_args():
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )

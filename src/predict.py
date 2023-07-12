@@ -87,7 +87,7 @@ if __name__ == "__main__":
     else:
         results = pkl.load(open(oj(config["PATHS"]["model_path"], args.model_name + ".pkl"), "rb"))
     for arg in vars(args):  
-        print(arg)   
+
         results[str(arg)] = getattr(args, arg)
 
     
