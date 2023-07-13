@@ -146,29 +146,12 @@ def load_data(data_path):
 
 
 def load_pool_data(data_path, ):
-
     files = os.listdir(data_path)
     file_name = files[0]
-
     im = io.imread(oj(data_path, file_name))
-
-
     if im.shape[2] == 3: # rgb
         im = np.swapaxes(im, 0, 2)
-    # imgs = np.vstack(
-    #     [
-    #         im[:, :1024, :1024],
-    #         im[:, :1024, 1024:],
-    #         im[:, 1024:, 1024:],
-    #         im[:, 1024:, :1024],
-    #     ]
-    # )
-    # del im
-
     my_imgs = np.asarray(im)
-
-    # my_imgs = my_imgs.astype(np.float)
-
     if len(my_imgs.shape) < 4:
         my_imgs = my_imgs[:, None]  # unet expects 4d
 
@@ -309,7 +292,7 @@ def make_dataset_single(
                 i+=1
                 cur_y += offset
             cur_x += offset
-    x_return = np.asarray(x_list).astype(float)
+    x_return = np.asarray(x_list)
     if return_slice_numbers:
         return (x_return, np.asarray(slice_numbers))
     return x_return
