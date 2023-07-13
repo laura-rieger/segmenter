@@ -93,14 +93,14 @@ def run(device, args):
                                                   return_slice_numbers= True )
         del x_pool
      
-        pool_set = TensorDataset(torch.Tensor(x_pool_all, dtype = torch.uint8))
+        pool_set = TensorDataset(torch.from_numpy(x_pool_all))
 
     else:
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool = (x_pool - data_min) / (data_max - data_min)
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
-        pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
+        pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
     initial_pool_len = len(pool_set)
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
     weight_factor = np.maximum(np.minimum(100, weight_factor), 1)
