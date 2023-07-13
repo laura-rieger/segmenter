@@ -168,11 +168,11 @@ def run(device, args):
         else:
             cur_patience += 1
 
-        # if cur_patience > patience or epoch == args.epochs:
-        if True: #xxx
+        if cur_patience > patience or epoch == args.epochs:
+        # if True: #xxx
             net.eval()
-            # if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
-            if True: #xxx
+            if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
+            # if True: #xxx
                 cur_patience = 0
                 add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
