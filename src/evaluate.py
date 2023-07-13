@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn.functional as F
 # from tqdm import tqdm
@@ -24,45 +23,23 @@ def final_evaluate(net, x_test, y_test, num_classes, device):
         
     return result
 
-def random_cost(net, device, loader, n_choose=-1):
+def random_cost(net, device, loader,data_smurfs, n_choose=-1, ):
     idxs = np.arange(len(loader.dataset))
     np.random.seed()
     np.random.shuffle(idxs)
     return idxs[-n_choose:]
 
 
-def num_pixel_cost(net, device, loader, percentile=.5,  n_choose=-1):
 
+
+def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
+    (data_min, data_max) = data_vals
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
     with torch.no_grad():
         for i, image in enumerate(loader):  # we only use the images, not the labels
 
-            image = image[0].to(device)
-            output = F.softmax(net.forward(image), dim=1)[:,:, 2:-2, 2:-2]
-            entropy  = -torch.sum(output * torch.log(output), dim=1)
-            # compute the 50 percentile for each image in torch
-            entropy_reshaped = entropy.reshape(entropy.shape[0], -1)
-            # sort the values
-            
-            std_arr[
-                i * loader.batch_size: i * loader.batch_size + len(output)
-            ] = (entropy_reshaped > .1).float().mean(dim=1).cpu().numpy()
-
-    if n_choose == -1:
-        return np.argsort(std_arr)
-    else:
-        return np.argsort(std_arr)[-n_choose:]
-
-
-def cut_off_cost(net, device, loader, percentile=.5,  n_choose=-1):
-
-    std_arr = -4 * np.ones((len(loader.dataset)))
-    net.eval()
-    with torch.no_grad():
-        for i, image in enumerate(loader):  # we only use the images, not the labels
-
-            image = image[0].to(device)
+            image = ((image[0].float() - data_min)/(data_max-data_min)).to(device)
             output = F.softmax(net.forward(image), dim=1)[:,:, 2:-2, 2:-2]
             entropy  = -torch.sum(output * torch.log(output), dim=1)
             # compute the 50 percentile for each image in torch

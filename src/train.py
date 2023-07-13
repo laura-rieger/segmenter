@@ -23,18 +23,12 @@ is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
 results = {}
 np.random.seed()
-
 results["file_name"] = "".join([str(np.random.choice(10)) for x in range(10)])
-
 
 def train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, num_batches):
     net.train()
     epoch_loss = 0
-    # num_batches = 64 # ad hoc value 
-    
-
-    for i, ( images, true_masks, ) in enumerate(train_loader):
-        
+    for i, ( images, true_masks, ) in enumerate(train_loader):  
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [ 2, ], )
             true_masks = torch.flip( true_masks, [ 1, ], )
@@ -63,8 +57,7 @@ def run(device, args):
     print("Start setting up data")
     loader_args = dict( batch_size=args.batch_size, num_workers=num_workers, pin_memory=True )
     cost_function = getattr(evaluate, args.cost_function)
-
-    # 1. Create dataset
+    is_human_annotation = ( len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1 )
     x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.foldername) )
     results["class_dict"] = class_dict
     data_min, data_max = np.min(x[:-1]), np.max(x[:-1])
@@ -74,10 +67,10 @@ def run(device, args):
     results.setdefault("val_scores", [])
     results.setdefault("train_losses", [])
     results.setdefault("num_classes", num_classes)
-
-
     x, y = x[:-1], y[:-1]  # #  don't touch the last full image - left for test
-    x, y = x[:5], y[:5]  # for lno, pretend that we have the same dataset as full just not fully annotated
+    # if it s not human 
+    # if is_human_annotation:
+    #     x, y = x[:5], y[:5]  # for lno, pretend that we have the same dataset as full just not fully annotated
     all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
@@ -91,11 +84,9 @@ def run(device, args):
     val_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset(x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.offset, ) ] )
     new_val_set = None
     new_val_loader = None
-    # num_train = len(train_set)
-    is_human_annotation = ( len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1 )
+    
     if is_human_annotation:
         x_pool = my_data.load_pool_data( oj(config["DATASET"]["data_path"], args.poolname) )
-        x_pool = (x_pool.astype(np.float16) - data_min) / (data_max - data_min)
         x_pool_all, slice_numbers = my_data.make_dataset_single( x_pool, 
                                                  img_size=args.image_size, 
                                                  offset=args.image_size,
@@ -109,9 +100,10 @@ def run(device, args):
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
-
+    initial_pool_len = len(pool_set)
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
-    weight_factor =  np.minimum(100, weight_factor)
+    weight_factor = np.maximum(np.minimum(100, weight_factor),1)
+
     weights = [1 for _ in range(len(train_set))]
     new_weights = weights
     # if this is a continuation, load the data
@@ -128,38 +120,29 @@ def run(device, args):
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), ] )
         (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, )
         new_val_loader = DataLoader(new_val_set, shuffle=False, **loader_args)
-        #
         weights = [1 for _ in range(len(train_set))] + [ weight_factor for _ in range(len(train_add_set)) ]
         train_set = ConcatDataset([train_set, train_add_set])
-        #
+        
 
-    # Create a WeightedRandomSampler using the weights
     torch.manual_seed(args.seed)
     sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights))
     train_loader = DataLoader(train_set, sampler=sampler, **loader_args)
     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
-    initial_pool_len = len(pool_loader.dataset)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_args)
-
-    # if this is the specific lno dataset, we have a fully annotated dataset that we can use for validation
-
 
     print("Start setting up model")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    net = UNet(n_channels=1, n_classes=results["num_classes"] ).to(device=device)
+    net = UNet(n_channels=1, n_classes=results["num_classes"]).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
     optimizer = optim.Adam(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean') 
-    # 5. Begin training
     best_val_score = 0
     best_weights = None
-
     patience = args.final_patience if args.add_step == 0 else args.add_step
-
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
@@ -175,27 +158,23 @@ def run(device, args):
             # if the new val set is not none, we need to weigh the scores
             val_score = ( val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor ) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
         results["val_scores"].append(val_score)
-        # print length of val scores
-        # print(results["val_scores"][-1])
         results["train_losses"].append(train_loss)
 
         # if the add step is unequal zero, just count up and add samples every add step
         if val_score > best_val_score:
-         
             best_val_score = val_score
             best_weights = deepcopy(net.state_dict())
             cur_patience = 0
         else:
             cur_patience += 1
 
-        if cur_patience >= patience or epoch == args.epochs:
-
-            # net.load_state_dict(best_weights)
+        # if cur_patience > patience or epoch == args.epochs:
+        if True: #xxx
             net.eval()
-
-            if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
+            # if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
+            if True: #xxx
                 cur_patience = 0
-                add_ids = cost_function( net, device, pool_loader, n_choose=args.add_size )
+                add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
 
                 add_train_ids = add_ids[:-num_val_add]
@@ -218,12 +197,10 @@ def run(device, args):
                     print(results["file_name"])
                     sys.exit()
                 else:
-                    
                     add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), 
                                                      torch.Tensor(y_pool_all[add_train_ids]), ] )
                     add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), 
                                                    torch.Tensor(y_pool_all[add_val_ids]), ] )
-
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
       
                     if new_val_set is None:
@@ -259,12 +236,25 @@ def run(device, args):
                     #load data again
                     if 'lno' in args.foldername.lower():
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
+                        
                         x_test, y_test = x[-1:], y[-1:]
                         x_test, y_test = my_data.stack_imgs(x_test, y_test)
                         x_test = (x_test - data_min) / (data_max - data_min)
 
                         results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 
                                                                             num_classes, device)
+                        all_idxs = np.arange(len(x))
+                        np.random.seed(0)
+                        np.random.shuffle(all_idxs)
+                        n_val = np.ceil(len(x) * args.val / 100).astype(int)
+                        n_train = len(x) - n_val
+                        val_idxs = all_idxs[n_train:]
+                        
+                        x_val, y_val = my_data.stack_imgs(x[val_idxs], y[val_idxs])
+                        x_val = (x_val - data_min) / (data_max - data_min)
+                        results["final_dice_score"] = evaluate.final_evaluate(net, x_val, y_val,
+                                                                            num_classes, device)
+                        
                    
 
 
@@ -282,20 +272,20 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Train the UNet on images and target masks"
     )
-    parser.add_argument("--epochs", "-e", type=int, default=2)
+    parser.add_argument("--epochs", "-e", type=int, default=2000)
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
     parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="lno", )
+    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
     parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
     parser.add_argument( "--offset", dest="offset", type=int, default=64, )
     parser.add_argument( "--seed", "-t", type=int, default=42, )
-    parser.add_argument( "--validation", "-v", dest="val", type=int, default=25, help="Val percentage (0-100)", )
+    parser.add_argument( "--validation", "-v", dest="val", type=int, default=18, help="Val percentage (0-100)", )
     parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument( "--add_step", type=int, default=0, help="> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated", )
     parser.add_argument("--progress_folder", "-f", type=str, default="") 

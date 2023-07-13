@@ -74,6 +74,7 @@ def load_annotated_imgs(data_path, class_dict):
 
 def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list, slice_numbers, save_model = True):
     cur_folder = oj(folder_path, results['file_name'])
+    data_min, data_max = results["data_min"], results["data_max"] 
     make_check_folder(folder_path, results['file_name'])
     if save_model:
 
@@ -96,7 +97,7 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
     pkl.dump(class_dict, open(oj(cur_folder, "class_dict.pkl"), "wb"))
     net.eval()
     with torch.no_grad():
-        img_t = torch.Tensor(images).to(device)
+        img_t = ((torch.Tensor(images).float() - data_min)/(data_max-data_min)).to(device)
         predictions = (net.forward(img_t).argmax(dim=1).detach().cpu().numpy().astype(float) )
         if debug:
             output = F.softmax(net.forward(img_t), dim=1)
