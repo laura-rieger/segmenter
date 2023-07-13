@@ -93,7 +93,7 @@ def run(device, args):
                                                   return_slice_numbers= True )
         del x_pool
      
-        pool_set = TensorDataset(torch.Tensor(x_pool_all))
+        pool_set = TensorDataset(torch.Tensor(x_pool_all, dtype = torch.uint8))
 
     else:
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
@@ -103,7 +103,7 @@ def run(device, args):
         pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), torch.Tensor(y_pool_all), ] )
     initial_pool_len = len(pool_set)
     weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
-    weight_factor = np.maximum(np.minimum(100, weight_factor),1)
+    weight_factor = np.maximum(np.minimum(100, weight_factor), 1)
 
     weights = [1 for _ in range(len(train_set))]
     new_weights = weights
@@ -118,7 +118,7 @@ def run(device, args):
             pool_ids = np.delete(pool_ids, cur_remove_list, axis=0)
             slice_numbers = np.delete(slice_numbers, cur_remove_list, axis=0)
         x_pool_all = x_pool_all[pool_ids]
-        pool_set = TensorDataset( *[ torch.Tensor(x_pool_all), ] )
+        pool_set = TensorDataset( *[ torch.Tensor(x_pool_all, dtype = torch.uint8), ] )
         (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, )
         new_val_loader = DataLoader(new_val_set, shuffle=False, **loader_args)
         weights = [1 for _ in range(len(train_set))] + [ weight_factor for _ in range(len(train_add_set)) ]
