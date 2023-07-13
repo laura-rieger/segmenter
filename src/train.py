@@ -91,6 +91,7 @@ def run(device, args):
                                                  img_size=args.image_size, 
                                                  offset=args.image_size,
                                                   return_slice_numbers= True )
+        del x_pool
      
         pool_set = TensorDataset(torch.Tensor(x_pool_all))
 
