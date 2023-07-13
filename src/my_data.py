@@ -83,12 +83,12 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
     if os.path.exists(oj(cur_folder, "slice_numbers.txt")):
         with open(oj(cur_folder, "slice_numbers.txt"), "a") as f:
 
-            for img_idx in image_idxs[-1]:
-                f.write(str(img_idx) + " " + str(slice_numbers[img_idx]) + "\n")
+            for i,img_idx in enumerate(image_idxs[-1]):
+                f.write(str(slice_numbers[img_idx][-1]) + " " + str(slice_numbers[img_idx][:-1]) + "\n")
     else:
         with open(oj(cur_folder, "slice_numbers.txt"), "w") as f:
             for img_idx in image_idxs[-1]:
-                f.write(str(img_idx) + " " + str(slice_numbers[img_idx]) + "\n")
+                f.write(str(slice_numbers[img_idx][-1]) + " " + str(slice_numbers[img_idx][:-1]) + "\n")
 
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
@@ -110,14 +110,16 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
     for i in range(len(images)):
         im = Image.fromarray(images[i, 0])
         # starting zeros
-        zeros = ''.join(['0' for _ in range(5 - len(str(image_idxs[-1][i])))])
+        cur_patch_idx =slice_numbers[image_idxs[-1][i]][-1]
+        zeros = ''.join(['0' for _ in range(5 - len(str(cur_patch_idx)))])
+        cur_file_name = zeros + str(cur_patch_idx) + "_" + str(indicator_list[i])+ ".tif"
 
-        im.save( oj(cur_folder, "images", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+        im.save( oj(cur_folder, "images", cur_file_name, ))
         im = Image.fromarray( predictions_classes[ i, ] )
-        im.save( oj(cur_folder, "predictions", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+        im.save( oj(cur_folder, "predictions",cur_file_name, ))
         if debug:
             im = Image.fromarray( entropy[ i, ] )
-            im.save( oj(cur_folder, "entropy", zeros + str(image_idxs[-1][i]) + "_" + str(indicator_list[i])+ ".tif"), )
+            im.save( oj(cur_folder, "entropy", cur_file_name), )
 
     return
 
@@ -287,6 +289,7 @@ def make_dataset_single(
     img_width = x.shape[-1]
     if return_slice_numbers:
         slice_numbers = []
+    i =0
 
     for idx in range(len(x)):
         # for idx in range(1):
@@ -301,8 +304,8 @@ def make_dataset_single(
                     x[idx, :, cur_x: cur_x + img_size, cur_y: cur_y + img_size]
                 )
                 if return_slice_numbers:
-                    slice_numbers.append((idx,  int(cur_x + img_size/2), int(cur_y+ img_size/2)))
-
+                    slice_numbers.append((idx,  int(cur_x + img_size/2), int(cur_y+ img_size/2),i))
+                i+=1
                 cur_y += offset
             cur_x += offset
     x_return = np.asarray(x_list).astype(float)
