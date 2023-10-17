@@ -41,6 +41,7 @@ def run(results, config ):
         cur_input = (np.copy(im[k]).astype(np.float32)- results['data_min']) / (results['data_max'] - results['data_min'])
      
         #divide image into parts
+        # todo predict with overlap
 
         height, width = cur_input.shape
         complete_output = np.zeros((height, width))

@@ -5,19 +5,19 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "ActiveLearning2",
+        "ActiveLearning",
     ],
-    "learningrate": [0.001],
+
     "seed": [x for x in range(3)],
     "cost_function": [ 'cut_off_cost', 'random_cost'], 
-    "add_ratio": [0.05,],
+    "add_ratio": [ 0.01, 0.05],
     'poolname' : ['lno'],
     "batch-size": [128],
 
     "add_step": [ 1, ],
     "add_size": [ 4, ], 
     "foldername": [ "lno_halfHour", ],
-    "epochs": [100],
+
     "image-size": [ 128, ],
 
     "offset": [ 64, ],

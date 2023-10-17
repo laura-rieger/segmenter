@@ -6,7 +6,7 @@ import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-    "progress_folder": ['0436935624'],
+    "progress_folder": ['0007565832'],
 }
 
 keys = sorted(params_to_vary.keys())

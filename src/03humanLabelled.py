@@ -1,6 +1,7 @@
 import itertools
 from simple_slurm import Slurm
 import platform
+import subprocess
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
@@ -9,15 +10,15 @@ params_to_vary = {
     "seed": [x for x in range(1)],
     "cost_function": [ "cut_off_cost", ], 
     "add_ratio": [ 0.02, ], # what proportion of the pool is added to the training set
-    'poolname' : ['voltif_LNO'],
-    "batch-size": [128],
+    'poolname' : ['lno_dummy_full'], # xxx not the real pool, our cluster can't handle it :)
+    "batch-size": [32],
     "add_size": [4], # how many images are added each step
-    "add_step": [ 3, ], #how long should there be no improvement before adding more data
+    "add_step": [ 1, ], #how long should there be no improvement before adding more data xxx
     "foldername": [ "DataLNO", ],
     "epochs": [100],
-    "image-size": [ 128, ],
+    "image-size": [ 256, ],
 
-    "offset": [ 64, ],
+    "offset": [ 128, ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -44,8 +45,8 @@ for i in range(len(param_combinations)):
         cur_function += "--" + key + " " + str(param_combinations[i][j]) + " "
 
     if is_windows:
-        print(cur_function)
-        # subprocess.call(cur_function, shell=True)
+        # print(cur_function)
+        subprocess.call(cur_function, shell=True)
 
     else:
         slurm.sbatch(cur_function)

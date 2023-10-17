@@ -49,7 +49,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 grad_scaler.update()
                 epoch_loss += loss.item()
         if i >= num_batches:
-            break
+            breakv
     return epoch_loss / (num_batches )  
 
 
@@ -92,7 +92,7 @@ def run(device, args):
                                                  offset=args.image_size,
                                                   return_slice_numbers= True )
         del x_pool
-     
+        x_pool_all = (x_pool_all - data_min) / (data_max - data_min)
         pool_set = TensorDataset(torch.from_numpy(x_pool_all))
 
     else:
@@ -118,7 +118,7 @@ def run(device, args):
             pool_ids = np.delete(pool_ids, cur_remove_list, axis=0)
             slice_numbers = np.delete(slice_numbers, cur_remove_list, axis=0)
         x_pool_all = x_pool_all[pool_ids]
-        pool_set = TensorDataset( *[ torch.Tensor(x_pool_all, dtype = torch.uint8), ] )
+        pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), ]  ) # dtype = torch.uint8
         (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, )
         new_val_loader = DataLoader(new_val_set, shuffle=False, **loader_args)
         weights = [1 for _ in range(len(train_set))] + [ weight_factor for _ in range(len(train_add_set)) ]
@@ -161,7 +161,6 @@ def run(device, args):
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
 
-        # if the add step is unequal zero, just count up and add samples every add step
         if val_score > best_val_score:
             best_val_score = val_score
             best_weights = deepcopy(net.state_dict())
@@ -170,10 +169,10 @@ def run(device, args):
             cur_patience += 1
 
         if cur_patience > patience or epoch == args.epochs:
-        # if True: #xxx
+
             net.eval()
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
-            # if True: #xxx
+
                 cur_patience = 0
                 add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
@@ -277,9 +276,9 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
+    parser.add_argument( "--foldername", type=str, default="DataGrSi", )
 
-    parser.add_argument( "--poolname", type=str, default="lno_dummy_full", )
+    parser.add_argument( "--poolname", type=str, default="voltif_GrSi", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
@@ -312,6 +311,9 @@ if __name__ == "__main__":
         run_folder = oj(config["PATHS"]["progress_results"], str(args.progress_folder))
         args = pkl.load(open(oj(run_folder, "args.pkl"), "rb"))
         args.progress_folder = progress_folder
+
+        #XXXX
+        args.batch_size = 2
 
         results = pkl.load(open(oj(run_folder, "results.pkl"), "rb"))
 
