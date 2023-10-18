@@ -42,14 +42,16 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 masks_pred = net(images)
                 # rn calculating array size each iteration - should change to once
                 loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
-                loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
+                # loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                 optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss + loss_dice).backward()
+                # grad_scaler.scale(loss + loss_dice).backward()
+                #xxx
+                grad_scaler.scale(loss ).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
                 epoch_loss += loss.item()
         if i >= num_batches:
-            breakv
+            break
     return epoch_loss / (num_batches )  
 
 
@@ -134,7 +136,7 @@ def run(device, args):
     print("Start setting up model")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    net = UNet(n_channels=1, n_classes=results["num_classes"]).to(device=device)
+    net = UNet(n_channels=1, n_classes=results["num_classes"], bilinear= True).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 

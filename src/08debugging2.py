@@ -12,15 +12,15 @@ params_to_vary = {
     "cost_function": [ 'cut_off_cost', ], 
     "add_ratio": [ 0.02],
     'poolname' : ['voltif_LNOop'],
-    "batch-size": [128],
+    "batch-size": [32],
 
     "add_step": [ 5, ],
     "add_size": [ 4, ], 
     "foldername": [ "DataLNOop", ],
 
-    "image-size": [ 128, ],
+    "image-size": [ 256, ],
 
-    "offset": [ 64, ],
+    "offset": [ 128, ],
 }
 
 keys = sorted(params_to_vary.keys())

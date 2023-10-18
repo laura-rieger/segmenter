@@ -8,29 +8,18 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "FullDatasetTraining",
+        "FullDatasetTraining3BiggerSize",
     ],
     "learningrate": [ 0.001,  ],
     "seed": [x for x in range(3)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
-    "batch-size": [128],
-    "foldername": [
-        "lno",
-    ],
-    "poolname": [
-        "lno", # "lno_human",
-    ],
-    "epochs": [
-        300,
-    ],
-    "image-size": [
-        128,
-    ],
-
-    "offset": [
-        64,
-    ],
+    "batch-size": [32],
+    "foldername": [ "lno", ],
+    "poolname": [ "lno", ], # "lno_human", ],
+    "epochs": [ 300, ],
+    "image-size": [ 256, ],
+    "offset": [ 128, ],
 }
 
 keys = sorted(params_to_vary.keys())
