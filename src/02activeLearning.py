@@ -5,22 +5,22 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "ActiveLearning",
+        "ActiveLearningGaussian",
     ],
 
     "seed": [x for x in range(3)],
     "cost_function": [ 'cut_off_cost', 'random_cost'], 
-    "add_ratio": [ 0.01, 0.05],
+    "add_ratio": [ 0.02],
     'poolname' : ['lno'],
-    "batch-size": [128],
+    "batch-size": [32],
 
     "add_step": [ 1, ],
     "add_size": [ 4, ], 
     "foldername": [ "lno_halfHour", ],
 
-    "image-size": [ 128, ],
+    "image-size": [ 256, ],
 
-    "offset": [ 64, ],
+    "offset": [ 128, ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -35,7 +35,7 @@ for i in range(len(param_combinations)):
         partition="sm3090",
         N=1,
         n=8,
-        time="0-05:35:00",
+        time="0-01:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

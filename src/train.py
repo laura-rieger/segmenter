@@ -29,12 +29,18 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
     net.train()
     epoch_loss = 0
     for i, ( images, true_masks, ) in enumerate(train_loader):  
+        # we do augmentation here
         if np.random.uniform() > 0.5:
             images = torch.flip(images, [ 2, ], )
             true_masks = torch.flip( true_masks, [ 1, ], )
         if np.random.uniform() > 0.5:
             images = torch.flip( images, [ 3, ], )
             true_masks = torch.flip( true_masks, [ 2, ], )
+        images = images + torch.randn(images.shape) * .01
+
+        
+
+        
         images = images.to(device=device, dtype=torch.float32)
         true_masks = true_masks.to(device=device, dtype=torch.long)
         with torch.cuda.amp.autocast(enabled=True):
@@ -42,11 +48,11 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 masks_pred = net(images)
                 # rn calculating array size each iteration - should change to once
                 loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
-                # loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
+                loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                 optimizer.zero_grad(set_to_none=True)
-                # grad_scaler.scale(loss + loss_dice).backward()
-                #xxx
-                grad_scaler.scale(loss ).backward()
+                grad_scaler.scale(loss + loss_dice).backward()
+               
+                # grad_scaler.scale(loss ).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
                 epoch_loss += loss.item()
@@ -90,7 +96,7 @@ def run(device, args):
     if is_human_annotation:
         x_pool = my_data.load_pool_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool_all, slice_numbers = my_data.make_dataset_single( x_pool, 
-                                                 img_size=args.image_size, 
+                                                 img_size=args.image_size*2, 
                                                  offset=args.image_size,
                                                   return_slice_numbers= True )
         del x_pool
@@ -99,7 +105,7 @@ def run(device, args):
 
     else:
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
-        x_pool = (x_pool - data_min) / (data_max - data_min)
+  
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
@@ -136,11 +142,11 @@ def run(device, args):
     print("Start setting up model")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    net = UNet(n_channels=1, n_classes=results["num_classes"], bilinear= True).to(device=device)
+    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device)
     if args.progress_folder != "":
         net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
 
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, )
+    optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
     criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean') 
     best_val_score = 0
@@ -264,8 +270,8 @@ def run(device, args):
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
-                    
-                    torch.save(net.state_dict(), oj(save_path, results["file_name"] + ".pt"))
+                    # xxx
+                    # torch.save(net.state_dict(), oj(save_path, results["file_name"] + ".pt"))
                     print(args.cost_function, results["file_name"]  )
                     sys.exit()
 
@@ -314,8 +320,6 @@ if __name__ == "__main__":
         args = pkl.load(open(oj(run_folder, "args.pkl"), "rb"))
         args.progress_folder = progress_folder
 
-        #XXXX
-        args.batch_size = 2
 
         results = pkl.load(open(oj(run_folder, "results.pkl"), "rb"))
 
@@ -325,7 +329,11 @@ if __name__ == "__main__":
     save_path = config["PATHS"]["model_path"]
     if not os.path.exists(save_path):
         os.makedirs(save_path)
+    if not torch.cuda.is_available():
+        print("CUDA not available")
+        sys.exit()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
     # if the run is continued, run_id is not empty
     run( device=device, args=args, )

@@ -8,13 +8,13 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "FullDatasetTraining3BiggerSize",
+        "FullDatasetTrainingBigbatch",
     ],
     "learningrate": [ 0.001,  ],
     "seed": [x for x in range(3)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
-    "batch-size": [32],
+    "batch-size": [16],
     "foldername": [ "lno", ],
     "poolname": [ "lno", ], # "lno_human", ],
     "epochs": [ 300, ],
