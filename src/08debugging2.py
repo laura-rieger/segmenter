@@ -11,12 +11,12 @@ params_to_vary = {
     "seed": [x for x in range(1)],
     "cost_function": [ 'cut_off_cost', ], 
     "add_ratio": [ 0.02],
-    'poolname' : ['voltif_LNOop'],
+    'poolname' : ['voltif_GrSi'],
     "batch-size": [32],
 
     "add_step": [ 5, ],
     "add_size": [ 4, ], 
-    "foldername": [ "DataLNOop", ],
+    "foldername": [ "DataGrSi", ],
 
     "image-size": [ 256, ],
 

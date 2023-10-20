@@ -8,7 +8,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "NoActiveLearningAnnotation",
+        "NoActiveLearningAnnotationSum",
     ],
     "learningrate": [0.001],
     "seed": [x for x in range(3)],
@@ -41,7 +41,7 @@ print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
         mail_type="FAIL",
-        partition="sm3090",
+        partition="sm3090el8",
         N=1,
         n=8,
         time="0-02:15:00",

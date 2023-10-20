@@ -18,11 +18,13 @@ from torch.nn import functional as F
 from utils.dice_score import dice_loss
 import evaluate
 from unet import UNet
-
+import wandb
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
 results = {}
 np.random.seed()
+
+
 results["file_name"] = "".join([str(np.random.choice(10)) for x in range(10)])
 
 def train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, num_batches):
@@ -36,7 +38,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
         if np.random.uniform() > 0.5:
             images = torch.flip( images, [ 3, ], )
             true_masks = torch.flip( true_masks, [ 2, ], )
-        images = images + torch.randn(images.shape) * .01
+        # images = images + torch.randn(images.shape) * .01
 
         
 
@@ -47,7 +49,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
             if torch.any(true_masks != 255):
                 masks_pred = net(images)
                 # rn calculating array size each iteration - should change to once
-                loss = criterion(masks_pred, true_masks) #/torch.numel(masks_pred) 
+                loss = criterion(masks_pred, true_masks) /torch.numel(masks_pred) 
                 loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss + loss_dice).backward()
@@ -96,7 +98,9 @@ def run(device, args):
     if is_human_annotation:
         x_pool = my_data.load_pool_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool_all, slice_numbers = my_data.make_dataset_single( x_pool, 
-                                                 img_size=args.image_size*2, 
+        # AAA
+                                                #  img_size=args.image_size*2,
+                                                 img_size=args.image_size,
                                                  offset=args.image_size,
                                                   return_slice_numbers= True )
         del x_pool
@@ -107,6 +111,7 @@ def run(device, args):
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
   
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
+        # AAAA
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
     initial_pool_len = len(pool_set)
@@ -148,7 +153,7 @@ def run(device, args):
 
     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean') 
+    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='sum') 
     best_val_score = 0
     best_weights = None
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -178,6 +183,7 @@ def run(device, args):
 
         if cur_patience > patience or epoch == args.epochs:
 
+
             net.eval()
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
 
@@ -189,6 +195,8 @@ def run(device, args):
                 add_val_ids = add_ids[-num_val_add:]
                 add_indicator_list = [0 for _ in range(len(add_train_ids))] + [ 1 for _ in range(len(add_val_ids)) ]
                 add_list = [x for x in add_ids]
+                # add_crop_start = x_pool_all.shape[2] // 4
+                # add_crop_end = x_pool_all.shape[2] // 4 * 3
                 if is_human_annotation:
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])    
@@ -197,7 +205,8 @@ def run(device, args):
 
                     my_data.save_progress(net, 
                                           remove_id_list, 
-                                          x_pool_all[add_ids], 
+                                        #   AAA
+                                          x_pool_all[add_ids,], #:,add_crop_start:add_crop_end,add_crop_start:add_crop_end],
                                           config["PATHS"]["progress_results"], 
                                           args, 
                                           device, 
@@ -205,10 +214,15 @@ def run(device, args):
                     print(results["file_name"])
                     sys.exit()
                 else:
-                    add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids]), 
-                                                     torch.Tensor(y_pool_all[add_train_ids]), ] )
-                    add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids]), 
-                                                   torch.Tensor(y_pool_all[add_val_ids]), ] )
+                    # add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids,:,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), 
+                    #                                  torch.Tensor(y_pool_all[add_train_ids,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), ] )
+                    # add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids,:,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), 
+                    #                                torch.Tensor(y_pool_all[add_val_ids,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), ] )
+    # xxx
+                    add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids,]), 
+                                                     torch.Tensor(y_pool_all[add_train_ids,]), ] )
+                    add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids,]), 
+                                                   torch.Tensor(y_pool_all[add_val_ids,]), ] )
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
       
                     if new_val_set is None:
@@ -262,11 +276,6 @@ def run(device, args):
                         x_val = (x_val - data_min) / (data_max - data_min)
                         results["final_dice_score"] = evaluate.final_evaluate(net, x_val, y_val,
                                                                             num_classes, device)
-                        
-                   
-
-
-
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
@@ -284,9 +293,9 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="DataGrSi", )
+    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
-    parser.add_argument( "--poolname", type=str, default="voltif_GrSi", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
@@ -331,7 +340,7 @@ if __name__ == "__main__":
         os.makedirs(save_path)
     if not torch.cuda.is_available():
         print("CUDA not available")
-        sys.exit()
+        sys.noGPUavailable() # if cuda is not there, fail loud af!
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

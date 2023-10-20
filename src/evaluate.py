@@ -36,11 +36,16 @@ def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
     (data_min, data_max) = data_vals
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
+    
     with torch.no_grad():
         for i, image in enumerate(loader):  # we only use the images, not the labels
 
             image = ((image[0].float() - data_min)/(data_max-data_min)).to(device)
-            output = F.softmax(net.forward(image), dim=1)[:,:, 2:-2, 2:-2]
+            output = F.softmax(net.forward(image), dim=1)
+            output_width = output.shape[2]
+            # only use half of it
+            # AAA
+            # output = output[:,:, int(output_width/4):int(3*output_width/4), int(output_width/4):int(3*output_width/4)]
             entropy  = -torch.sum(output * torch.log(output), dim=1)
             # compute the 50 percentile for each image in torch
             entropy_reshaped = entropy.reshape(entropy.shape[0], -1)

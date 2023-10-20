@@ -5,7 +5,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "ActiveLearningGaussian",
+        "ActiveLearningSum",
     ],
 
     "seed": [x for x in range(3)],
@@ -18,9 +18,9 @@ params_to_vary = {
     "add_size": [ 4, ], 
     "foldername": [ "lno_halfHour", ],
 
-    "image-size": [ 256, ],
+    "image-size": [ 128, ],
 
-    "offset": [ 128, ],
+    "offset": [ 64, ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -32,7 +32,7 @@ print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
         mail_type="FAIL",
-        partition="sm3090",
+        partition="sm3090el8",
         N=1,
         n=8,
         time="0-01:35:00",
