@@ -33,6 +33,7 @@ def random_cost(net, device, loader,data_smurfs, n_choose=-1, ):
 
 
 def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
+
     (data_min, data_max) = data_vals
     std_arr = -4 * np.ones((len(loader.dataset)))
     net.eval()
@@ -41,11 +42,7 @@ def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
         for i, image in enumerate(loader):  # we only use the images, not the labels
 
             image = ((image[0].float() - data_min)/(data_max-data_min)).to(device)
-            output = F.softmax(net.forward(image), dim=1)
-            output_width = output.shape[2]
-            # only use half of it
-            # AAA
-            # output = output[:,:, int(output_width/4):int(3*output_width/4), int(output_width/4):int(3*output_width/4)]
+            output = F.softmax(net.forward(image), dim=1)[:,:, 2:-2, 2:-2]
             entropy  = -torch.sum(output * torch.log(output), dim=1)
             # compute the 50 percentile for each image in torch
             entropy_reshaped = entropy.reshape(entropy.shape[0], -1)
@@ -61,14 +58,13 @@ def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
         return np.argsort(std_arr)
     else:
         #upper five percent
-      
         up_five = int(len(loader.dataset) * .05)
         pot_idxs = np.argsort(std_arr)[-up_five:]
         #randomly choose n_choose from the upper five percent
         # np.random.seed()
         np.random.shuffle(pot_idxs)
         return pot_idxs[:n_choose]
-        return np.argsort(std_arr)[-n_choose:]
+        # return np.argsort(std_arr)[-n_choose:]
 # def give_results(net, device, loader, ):
 #     output_list = []
 #     net.eval()

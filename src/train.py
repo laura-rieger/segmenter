@@ -7,7 +7,9 @@ from os.path import join as oj
 import torch
 torch.backends.cudnn.deterministic = True
 import torch.nn as nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau 
 from tqdm import tqdm
+from focal_loss.focal_loss import FocalLoss
 import sys
 from copy import deepcopy
 from torch import optim
@@ -18,7 +20,7 @@ from torch.nn import functional as F
 from utils.dice_score import dice_loss
 import evaluate
 from unet import UNet
-import wandb
+
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
 results = {}
@@ -48,16 +50,29 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
         with torch.cuda.amp.autocast(enabled=True):
             if torch.any(true_masks != 255):
                 masks_pred = net(images)
-                # rn calculating array size each iteration - should change to once
-                loss = criterion(masks_pred, true_masks) /torch.numel(masks_pred) 
-                loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
-                optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss + loss_dice).backward()
+                # focal loss
+                try:
+                    masks_pred = F.softmax(masks_pred, dim=1)
+                    masks_pred = masks_pred.permute(0, 2, 3, 1).contiguous().view(-1, num_classes)
+                    true_masks = true_masks.view(-1)
+                
+                    loss = criterion(masks_pred, true_masks)
+                    loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
+                    optimizer.zero_grad(set_to_none=True)
+                    grad_scaler.scale(loss + loss_dice).backward()
+                except:
+                    print("Error in loss calculation")
+                    print(masks_pred.shape)
+                    print(true_masks.shape)
+                    print(masks_pred.max(), masks_pred.min())
+                    print(true_masks.max(), true_masks.min())
+                    sys.exit()
                
                 # grad_scaler.scale(loss ).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
-                epoch_loss += loss.item()
+                epoch_loss += loss.item() + loss_dice.item()
+                # epoch_loss += loss.item() 
         if i >= num_batches:
             break
     return epoch_loss / (num_batches )  
@@ -79,8 +94,6 @@ def run(device, args):
     results.setdefault("num_classes", num_classes)
     x, y = x[:-1], y[:-1]  # #  don't touch the last full image - left for test
     # if it s not human 
-    # if is_human_annotation:
-    #     x, y = x[:5], y[:5]  # for lno, pretend that we have the same dataset as full just not fully annotated
     all_idxs = np.arange(len(x))
     np.random.seed(0)
     np.random.shuffle(all_idxs)
@@ -98,7 +111,6 @@ def run(device, args):
     if is_human_annotation:
         x_pool = my_data.load_pool_data( oj(config["DATASET"]["data_path"], args.poolname) )
         x_pool_all, slice_numbers = my_data.make_dataset_single( x_pool, 
-        # AAA
                                                 #  img_size=args.image_size*2,
                                                  img_size=args.image_size,
                                                  offset=args.image_size,
@@ -111,12 +123,12 @@ def run(device, args):
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
   
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
-        # AAAA
+  
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
     initial_pool_len = len(pool_set)
-    weight_factor = .25 * (len(train_set) / (len(pool_set) * args.add_ratio * (1 - args.val / 100)) if args.add_ratio != 0 else 1)
-    weight_factor = np.maximum(np.minimum(100, weight_factor), 1)
+
+    weight_factor = 5
 
     weights = [1 for _ in range(len(train_set))]
     new_weights = weights
@@ -153,7 +165,8 @@ def run(device, args):
 
     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='sum') 
+    # criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean') 
+    criterion = FocalLoss(gamma=0.7, ignore_index=255)
     best_val_score = 0
     best_weights = None
     patience = args.final_patience if args.add_step == 0 else args.add_step
@@ -181,12 +194,11 @@ def run(device, args):
         else:
             cur_patience += 1
 
-        if cur_patience > patience or epoch == args.epochs:
-
-
+        if cur_patience > patience or epoch == args.epochs: 
+        # if True:
+        
             net.eval()
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
-
                 cur_patience = 0
                 add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
@@ -195,8 +207,7 @@ def run(device, args):
                 add_val_ids = add_ids[-num_val_add:]
                 add_indicator_list = [0 for _ in range(len(add_train_ids))] + [ 1 for _ in range(len(add_val_ids)) ]
                 add_list = [x for x in add_ids]
-                # add_crop_start = x_pool_all.shape[2] // 4
-                # add_crop_end = x_pool_all.shape[2] // 4 * 3
+
                 if is_human_annotation:
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])    
@@ -205,7 +216,6 @@ def run(device, args):
 
                     my_data.save_progress(net, 
                                           remove_id_list, 
-                                        #   AAA
                                           x_pool_all[add_ids,], #:,add_crop_start:add_crop_end,add_crop_start:add_crop_end],
                                           config["PATHS"]["progress_results"], 
                                           args, 
@@ -214,14 +224,10 @@ def run(device, args):
                     print(results["file_name"])
                     sys.exit()
                 else:
-                    # add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids,:,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), 
-                    #                                  torch.Tensor(y_pool_all[add_train_ids,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), ] )
-                    # add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids,:,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), 
-                    #                                torch.Tensor(y_pool_all[add_val_ids,add_crop_start:add_crop_end,add_crop_start:add_crop_end]), ] )
-    # xxx
-                    add_train_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_train_ids,]), 
+
+                    add_train_set = TensorDataset( *[ torch.Tensor((x_pool_all[add_train_ids,] - data_min) / (data_max - data_min)), 
                                                      torch.Tensor(y_pool_all[add_train_ids,]), ] )
-                    add_val_set = TensorDataset( *[ torch.Tensor(x_pool_all[add_val_ids,]), 
+                    add_val_set = TensorDataset( *[ torch.Tensor((x_pool_all[add_val_ids,] - data_min) / (data_max - data_min)), 
                                                    torch.Tensor(y_pool_all[add_val_ids,]), ] )
                     newTrainSet = ConcatDataset([train_loader.dataset, add_train_set])
       
@@ -232,7 +238,7 @@ def run(device, args):
                         
                     new_val_loader = DataLoader( new_val_set, shuffle=False, **loader_args )
                     # weigh the samples such as the total weight of them will be equal to the dataset
-                    new_weights = new_weights + [ weight_factor for _ in range(len(add_train_set)) ]
+                    new_weights = new_weights  + [ weight_factor for _ in range(len(add_train_set)) ] 
                     new_sampler = torch.utils.data.WeightedRandomSampler( new_weights, len(new_weights) )
                     train_loader = DataLoader( newTrainSet, sampler=new_sampler, **loader_args )
                     # delete from pool
@@ -306,7 +312,7 @@ def get_args():
     parser.add_argument( "--export_results", type=int, default=0, help="If the added samples should be exported - this is for presentation slides", )
     parser.add_argument( "--add_step", type=int, default=0, help="> 0: examples will be added at preset intervals rather than considering the validation loss when validation set is sparsely annotated", )
     parser.add_argument("--progress_folder", "-f", type=str, default="") 
-    parser.add_argument("--final_patience", "-fp", type=int, default="10")
+    parser.add_argument("--final_patience", "-fp", type=int, default="5")
     
     parser.add_argument("--num_batches", "-nb", type=int, default="64")
     return parser.parse_args()
