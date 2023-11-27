@@ -285,8 +285,8 @@ def run(device, args):
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(results, open(os.path.join(save_path, results["file_name"] + ".pkl"), "wb") )
-                    # xxx
-                    # torch.save(net.state_dict(), oj(save_path, results["file_name"] + ".pt"))
+                    
+                    torch.save(net.state_dict(), oj(save_path, results["file_name"] + ".pt"))
                     print(args.cost_function, results["file_name"]  )
                     sys.exit()
 

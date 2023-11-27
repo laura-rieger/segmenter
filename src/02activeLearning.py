@@ -5,7 +5,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "EActiveLearning",
+        "ActiveLearning",
     ],
 
     "seed": [x for x in range(3)],
