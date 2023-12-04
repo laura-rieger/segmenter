@@ -116,7 +116,7 @@ def run(device, args):
                                                  offset=args.image_size,
                                                   return_slice_numbers= True )
         del x_pool
-        x_pool_all = (x_pool_all - data_min) / (data_max - data_min)
+        # x_pool_all = (x_pool_all - data_min) / (data_max - data_min)
         pool_set = TensorDataset(torch.from_numpy(x_pool_all))
 
     else:
@@ -160,8 +160,11 @@ def run(device, args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device)
-    if args.progress_folder != "":
-        net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
+    # if args.progress_folder != "":
+    
+        
+    #     net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
+    #     pass
 
     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
@@ -173,10 +176,12 @@ def run(device, args):
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
+    args.epochs = 2500 # xxx
     tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     init_epochs = len(
         results["val_scores"]
     )  # if this is in progress, we start at the current epoch
+    init_epochs = 0 # xxx
     for epoch in tqdm(range(init_epochs, args.epochs + 1), total=tqdm_total):
         train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, args.num_batches)
         val_score = evaluate.evaluate(net, val_loader, device, num_classes, criterion)
@@ -186,6 +191,7 @@ def run(device, args):
             val_score = ( val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor ) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
+        print(val_score, train_loss, new_val_score if new_val_set is not None else 0)
 
         if val_score > best_val_score:
             best_val_score = val_score
@@ -193,13 +199,15 @@ def run(device, args):
             cur_patience = 0
         else:
             cur_patience += 1
-
-        if cur_patience > patience or epoch == args.epochs: 
-        # if True:
+        # print(args.epochs)
+        if cur_patience > patience or epoch == args.epochs:  
+        # if True: # 
         
             net.eval()
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
                 cur_patience = 0
+
+                net.load_state_dict(best_weights) 
                 add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
 
@@ -212,7 +220,6 @@ def run(device, args):
                     if not os.path.exists(config["PATHS"]["progress_results"]):
                         os.makedirs(config["PATHS"]["progress_results"])    
                     remove_id_list.append(add_list)
-                    net.load_state_dict(best_weights) 
 
                     my_data.save_progress(net, 
                                           remove_id_list, 
@@ -262,7 +269,7 @@ def run(device, args):
                                                                     num_classes, criterion)
                     #xxxx not for graphite
                     #load data again
-                    if 'lno' in args.foldername.lower():
+                    if args.foldername.lower() == "lno":
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
                         
                         x_test, y_test = x[-1:], y[-1:]
@@ -296,16 +303,16 @@ def get_args():
         description="Train the UNet on images and target masks"
     )
     parser.add_argument("--epochs", "-e", type=int, default=2000)
-    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=2, )
+    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=64, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
+    parser.add_argument( "--foldername", type=str, default="DataGrSi", )
 
-    parser.add_argument( "--poolname", type=str, default="lno", )
+    parser.add_argument( "--poolname", type=str, default="voltif_GrSi", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
     parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
-    parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=2, )
+    parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=4, )
     parser.add_argument( "--offset", dest="offset", type=int, default=64, )
     parser.add_argument( "--seed", "-t", type=int, default=42, )
     parser.add_argument( "--validation", "-v", dest="val", type=int, default=18, help="Val percentage (0-100)", )

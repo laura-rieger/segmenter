@@ -61,7 +61,7 @@ def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,):
         up_five = int(len(loader.dataset) * .05)
         pot_idxs = np.argsort(std_arr)[-up_five:]
         #randomly choose n_choose from the upper five percent
-        # np.random.seed()
+        np.random.seed()
         np.random.shuffle(pot_idxs)
         return pot_idxs[:n_choose]
         # return np.argsort(std_arr)[-n_choose:]
