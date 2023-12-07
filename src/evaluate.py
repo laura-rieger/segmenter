@@ -7,8 +7,6 @@ from utils.dice_score import multiclass_dice_coeff
 def final_evaluate(net, x_test, y_test, num_classes, device):
 
     net.eval()
- 
-
 
     y_pred = []
     for i in range(len(x_test)):

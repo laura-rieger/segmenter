@@ -6,8 +6,8 @@ import my_data
 from os.path import join as oj
 import torch
 torch.backends.cudnn.deterministic = True
-import torch.nn as nn
-from torch.optim.lr_scheduler import ReduceLROnPlateau 
+# import torch.nn as nn
+# from torch.optim.lr_scheduler import ReduceLROnPlateau 
 from tqdm import tqdm
 from focal_loss.focal_loss import FocalLoss
 import sys
@@ -55,7 +55,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                     masks_pred = F.softmax(masks_pred, dim=1)
                     masks_pred = masks_pred.permute(0, 2, 3, 1).contiguous().view(-1, num_classes)
                     true_masks = true_masks.view(-1)
-                
+
                     loss = criterion(masks_pred, true_masks)
                     loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                     optimizer.zero_grad(set_to_none=True)
@@ -123,7 +123,7 @@ def run(device, args):
         x_pool, y_pool, _, _ = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.poolname) )
   
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
-  
+
         x_pool_all, y_pool_all = my_data.make_dataset( x_pool, y_pool, img_size=args.image_size, offset=args.image_size, )
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
     initial_pool_len = len(pool_set)
@@ -144,7 +144,7 @@ def run(device, args):
             slice_numbers = np.delete(slice_numbers, cur_remove_list, axis=0)
         x_pool_all = x_pool_all[pool_ids]
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), ]  ) # dtype = torch.uint8
-        (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, )
+        (train_add_set, new_val_set) = my_data.load_annotated_imgs( oj( config["PATHS"]["progress_results"], args.progress_folder, ), class_dict, (data_min, data_max) )
         new_val_loader = DataLoader(new_val_set, shuffle=False, **loader_args)
         weights = [1 for _ in range(len(train_set))] + [ weight_factor for _ in range(len(train_add_set)) ]
         train_set = ConcatDataset([train_set, train_add_set])
@@ -176,22 +176,23 @@ def run(device, args):
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
-    args.epochs = 2500 # xxx
+    # args.epochs = 2500 
     tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     init_epochs = len(
         results["val_scores"]
     )  # if this is in progress, we start at the current epoch
-    init_epochs = 0 # xxx
+    # init_epochs = 0 # 
     for epoch in tqdm(range(init_epochs, args.epochs + 1), total=tqdm_total):
         train_loss = train(net, train_loader, criterion, num_classes, optimizer, device, grad_scaler, args.num_batches)
         val_score = evaluate.evaluate(net, val_loader, device, num_classes, criterion)
+        old_val_score = val_score
         if new_val_set is not None:
             new_val_score = evaluate.evaluate(net, new_val_loader, device, num_classes, criterion)
             # if the new val set is not none, we need to weigh the scores
             val_score = ( val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor ) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
-        print(val_score, train_loss, new_val_score if new_val_set is not None else 0)
+        print(val_score, train_loss, new_val_score if new_val_set is not None else 0, old_val_score)
 
         if val_score > best_val_score:
             best_val_score = val_score
@@ -267,7 +268,7 @@ def run(device, args):
 
                     results["final_dice_score"] = evaluate.evaluate( net, val_loader, device, 
                                                                     num_classes, criterion)
-                    #xxxx not for graphite
+              
                     #load data again
                     if args.foldername.lower() == "lno":
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )

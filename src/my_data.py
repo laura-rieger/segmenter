@@ -28,7 +28,7 @@ def make_check_folder(intermittent_path, id):
     return
 
 
-def load_annotated_imgs(data_path, class_dict):
+def load_annotated_imgs(data_path, class_dict, data_vals):
     # assumes that everything with _0 is training and everything with _1 is testing
     # assumes that there are two folders, predictions and images
     images_folder = oj(data_path, "images")
@@ -37,11 +37,12 @@ def load_annotated_imgs(data_path, class_dict):
     images = []
     annotations = []
     is_test_list = []
+    data_min, data_max = data_vals
   
 
     for file_name in sorted(os.listdir(images_folder)):
 
-        images.append(io.imread(oj(images_folder, file_name)))
+        images.append((io.imread(oj(images_folder, file_name)) - data_min)/(data_max-data_min))
         annotations.append(io.imread(oj(annot_folder, file_name)))
         if "_0" in file_name:
             is_test_list.append(False)
@@ -273,7 +274,7 @@ def make_dataset_single(
     img_width = x.shape[-1]
     if return_slice_numbers:
         slice_numbers = []
-    i =0
+    i = 0
 
     for idx in range(len(x)):
         # for idx in range(1):
