@@ -84,12 +84,7 @@ def run(results, config ):
                     cur_output = net(cur_cur_input)
                     if cur_output.shape[2] != patch_size or cur_output.shape[3] != patch_size:
                         break
-                    #flip
-                    # for flip_axes in [[-1], [-2], [-1, -2]]:
-                    #     cur_output += torch.flip(F.softmax(net(torch.flip(torch.clone(cur_cur_input), flip_axes)), dim=1), flip_axes)
-                    # # for flip
 
-                    # calculate factor with which to take this into account with a linspace
                     factor = get_patch_multiplier(patch_size)
                     cur_output = cur_output.squeeze().cpu().detach().numpy() * factor[None, :]
                 
@@ -98,8 +93,7 @@ def run(results, config ):
                     complete_output[:, start_height:end_height, start_width:end_width] +=cur_output
 
             complete_output = np.argmax(complete_output, axis=0)
-            #save output
-            #fill up with zeros
+
             complete_output_final = np.zeros_like(complete_output)
             for val in results['class_dict']:
                 complete_output_final[complete_output == val] = results['class_dict'][val]  

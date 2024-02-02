@@ -5,7 +5,7 @@ import subprocess
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
-    "experiment_name": [ "humanLabelled", ],
+    "experiment_name": [ "DebugMode", ],
     "learningrate": [0.001],
     "seed": [x for x in range(1)],
     "cost_function": [ "cut_off_cost", ], 
@@ -16,7 +16,7 @@ params_to_vary = {
     "add_step": [ 1, ], #how long should there be no improvement before adding more data xxx
     "foldername": [ "DataLNO", ],
     "epochs": [100],
-    "image-size": [ 256, ],
+    "image-size": [ 200, ],
 
     "offset": [ 128, ],
 }

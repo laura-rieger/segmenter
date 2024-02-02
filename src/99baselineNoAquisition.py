@@ -1,31 +1,39 @@
+
 import itertools
+import os
+
 from simple_slurm import Slurm
 import platform
 
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "AActiveLearning",
+        "TestClusterNoActiveLearning",
+    ],
+    "learningrate": [0.0001],
+    "seed": [x for x in range(1)], # xxx
+    "cost_function": ["random_cost",],
+    "add_ratio": [.0, ],
+    "batch-size": [128,],
+    "foldername": [
+        "lno_halfHour", 
+    ],
+    "poolname": [
+        "lno", # "lno_human",
+    ],
+    "epochs": [
+        1000,
+    ],
+    "image-size": [
+        128,
     ],
 
-    "seed": [x for x in range(3)],
-    "cost_function": [ 'cut_off_cost','random_cost'],
-    "add_ratio": [ .2,  .5,],
-    'poolname' : ['lno'],
-    "batch-size": [128,],
-
-    "learningrate": [ 0.0001,],
-    "add_step": [ 1, ],
-    "add_size": [ 4, ], 
-    "foldername": [ "lno_halfHour", ],
-
-    "image-size": [ 128, ],
-
-    "offset": [ 64, ],
+    "offset": [
+        64,
+    ],
 }
 
 keys = sorted(params_to_vary.keys())
-
 vals = [params_to_vary[k] for k in keys]
 
 param_combinations = list(itertools.product(*vals))  # list of tuples
@@ -33,10 +41,10 @@ print(len(param_combinations))
 for i in range(len(param_combinations)):
     slurm = Slurm(
         mail_type="FAIL",
-        partition="sm3090el8",
+        partition="sm3090_devel",
         N=1,
         n=8,
-        time="0-12:35:00",
+        time="0-02:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

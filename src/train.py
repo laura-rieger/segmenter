@@ -51,27 +51,39 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
             if torch.any(true_masks != 255):
                 masks_pred = net(images)
                 # focal loss
+                
                 try:
                     masks_pred = F.softmax(masks_pred, dim=1)
                     masks_pred = masks_pred.permute(0, 2, 3, 1).contiguous().view(-1, num_classes)
                     true_masks = true_masks.view(-1)
 
-                    loss = criterion(masks_pred, true_masks)
+                    loss = criterion(masks_pred, true_masks) #xxx
                     loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                     optimizer.zero_grad(set_to_none=True)
                     grad_scaler.scale(loss + loss_dice).backward()
+                    masks_pred_np_copy = masks_pred.detach().cpu().numpy()
+                    true_masks_np_copy = true_masks.detach().cpu().numpy()
+                    # grad_scaler.scale(loss ).backward()
+             
                 except:
                     print("Error in loss calculation")
                     print(masks_pred.shape)
                     print(true_masks.shape)
                     print(masks_pred.max(), masks_pred.min())
                     print(true_masks.max(), true_masks.min())
+                    # export masks_pred_np_copy and true_masks_np_copy as a pickle file
+                    pkl.dump(masks_pred_np_copy, open("masks_pred.pkl", "wb"))
+                    pkl.dump(true_masks_np_copy, open("true_masks.pkl", "wb"))
+                    # for good measure also export the current input
+                    pkl.dump(images.detach().cpu().numpy(), open("images.pkl", "wb"))
+
+
                     sys.exit()
                
                 # grad_scaler.scale(loss ).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
-                epoch_loss += loss.item() + loss_dice.item()
+                epoch_loss += loss.item()  # + loss_dice.item() # xxx
                 # epoch_loss += loss.item() 
         if i >= num_batches:
             break
@@ -103,6 +115,7 @@ def run(device, args):
     val_idxs = all_idxs[n_train:]
     
     init_train_idxs = all_train_idxs
+
     train_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset(x[init_train_idxs], y[init_train_idxs], img_size=args.image_size, offset=args.offset, ) ] )
     val_set = TensorDataset( *[ torch.Tensor(input) for input in my_data.make_dataset(x[val_idxs], y[val_idxs], img_size=args.image_size, offset=args.offset, ) ] )
     new_val_set = None
@@ -128,7 +141,7 @@ def run(device, args):
         pool_set = TensorDataset( *[ torch.from_numpy(x_pool_all), torch.from_numpy(y_pool_all), ] )
     initial_pool_len = len(pool_set)
 
-    weight_factor = 5
+    weight_factor = 10
 
     weights = [1 for _ in range(len(train_set))]
     new_weights = weights
@@ -160,11 +173,11 @@ def run(device, args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device)
-    # if args.progress_folder != "":
+    if args.progress_folder != "":
     
         
-    #     net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
-    #     pass
+        # net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
+        pass
 
     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
     grad_scaler = torch.cuda.amp.GradScaler()
@@ -176,7 +189,7 @@ def run(device, args):
     cur_patience = 0
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
-    # args.epochs = 2500 
+
     tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     init_epochs = len(
         results["val_scores"]
@@ -192,7 +205,7 @@ def run(device, args):
             val_score = ( val_score * len(val_loader.dataset) + new_val_score * len(new_val_loader.dataset) * weight_factor ) / (len(val_loader.dataset) + len(new_val_loader.dataset) * weight_factor)
         results["val_scores"].append(val_score)
         results["train_losses"].append(train_loss)
-        print(val_score, train_loss, new_val_score if new_val_set is not None else 0, old_val_score)
+        # print(val_score, train_loss, new_val_score if new_val_set is not None else 0, old_val_score)
 
         if val_score > best_val_score:
             best_val_score = val_score
@@ -202,7 +215,7 @@ def run(device, args):
             cur_patience += 1
         # print(args.epochs)
         if cur_patience > patience or epoch == args.epochs:  
-        # if True: # 
+   
         
             net.eval()
             if ( len(pool_loader.dataset) > 0 and len(pool_loader.dataset) / initial_pool_len > 1 - args.add_ratio ):
@@ -256,6 +269,9 @@ def run(device, args):
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     best_val_score = 0
                     best_weights = None
+                    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device) # reset the model XXX
+                    optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
+                    grad_scaler = torch.cuda.amp.GradScaler()
                     print( "Added {} samples to the training set".format( len(add_train_ids) ) )
             else:
                 # if the pool is empty, increase patience to ten, a normal patience value and continue training with the full set
@@ -270,7 +286,7 @@ def run(device, args):
                                                                     num_classes, criterion)
               
                     #load data again
-                    if args.foldername.lower() == "lno":
+                    if "lno" in args.foldername.lower():
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
                         
                         x_test, y_test = x[-1:], y[-1:]
@@ -304,15 +320,15 @@ def get_args():
         description="Train the UNet on images and target masks"
     )
     parser.add_argument("--epochs", "-e", type=int, default=2000)
-    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=64, )
+    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=8, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
-    parser.add_argument( "--add_ratio", type=float, default=0.02, )
+    parser.add_argument( "--add_ratio", type=float, default=0.0, )
     parser.add_argument( "--foldername", type=str, default="DataGrSi", )
 
-    parser.add_argument( "--poolname", type=str, default="voltif_GrSi", )
+    parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
-    parser.add_argument( "--image-size", dest="image_size", type=int, default=128, )
+    parser.add_argument( "--image-size", dest="image_size", type=int, default=317, ) # XXX debug
     parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=4, )
     parser.add_argument( "--offset", dest="offset", type=int, default=64, )
     parser.add_argument( "--seed", "-t", type=int, default=42, )
