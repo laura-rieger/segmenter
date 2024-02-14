@@ -143,3 +143,6 @@ figs/comparison_long.png
 progress_files/*
 *.json
 src.zip
+*.zip
+*.jpeg
+*.csv

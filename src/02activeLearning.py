@@ -5,12 +5,12 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "AActiveLearning",
+        "BActiveLearning",
     ],
 
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(5)],
     "cost_function": [ 'cut_off_cost','random_cost'],
-    "add_ratio": [ .2,  .5,],
+    "add_ratio": [ .02, .04, .06, .08 , .1],
     'poolname' : ['lno'],
     "batch-size": [128,],
 
@@ -36,7 +36,7 @@ for i in range(len(param_combinations)):
         partition="sm3090el8",
         N=1,
         n=8,
-        time="0-12:35:00",
+        time="0-02:35:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

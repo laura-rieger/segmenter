@@ -11,16 +11,20 @@ import pickle as pkl
 import numpy as np
 from unet import UNet
 
+
 import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser(
         description="Train the UNet on images and target masks"
     )
-    parser.add_argument( "--model_name", type=str, default="7484161710", )
+    parser.add_argument( "--model_name", type=str, default="4352513863", )
     parser.add_argument("--input_folder", "-i", type=str, 
-                        default="C:\\Users\\lauri\\OneDrive - Danmarks Tekniske Universitet\\Dokumenter\\GitHub\\segmenter\\data\\predict_folder\\00_LNO_trainSet.tif") 
+                        default="C:\\Users\\lauri\\OneDrive - Danmarks Tekniske Universitet\\Dokumenter\\GitHub\\segmenter\\data\\predict_folder\\LNO.tif") 
     parser.add_argument("--result_folder", 
                         "-r", type=str, default="C:\\Users\\lauri\\OneDrive - Danmarks Tekniske Universitet\\Dokumenter\\GitHub\\segmenter\\data\\result_folder") 
+    # parser step size
+    parser.add_argument("--step_size", "-s", type=int, 
+                        default=128 ) 
     
     return parser.parse_args()
 
@@ -35,32 +39,28 @@ def get_patch_multiplier(patch_size):
     distance_from_middle = 1- distance_from_middle
     distance_from_middle = distance_from_middle +.01
     return distance_from_middle 
-def run(results, config ):
+def run(net, input_imgs, data_min, data_max, step_size, num_classes, use_orig_values=True, return_whole = False ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # make model
-    net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
-    #check if there is a model
-    if os.path.exists(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")):
-        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")))
-    else:
-        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'], "model_state.pt")))
+
     net.eval()
 
-    # load data
-    im = io.imread(results['input_folder'])
+    # load data #xxx this does not make sense
+    im = input_imgs.squeeze()
+    if len(im.shape) == 2:
+        im = im[None, :]
     #preprocess
 
     #assume that it can handle one image at a time
-    
+    output_imgs = []
     with torch.no_grad():
-        for k in tqdm(range(len(im))):
-            cur_input = (np.copy(im[k]).astype(np.float32)- results['data_min']) / (results['data_max'] - results['data_min'])
+        for k in range(len(im)):
+            cur_input = (np.copy(im[k]).astype(np.float32)- data_min) / (data_max - data_min)
         
             #divide image into parts
 
             height, width = cur_input.shape
-            step_size = 32
-            patch_size = height // 2
+            
+            patch_size = height // 4
             # ensure that img size is divisible by step size
             assert height % step_size == 0 and width % step_size == 0
 
@@ -68,9 +68,9 @@ def run(results, config ):
 
 
 
-            complete_output = np.zeros(( results["num_classes"], height, width,))
+            complete_output = np.zeros(( num_classes, height, width,))
        
-            for i in range(0, height//step_size):
+            for i in tqdm(range(0, height//step_size)):
                 for j in range(0, width//step_size):
                     
                     start_height, end_height = i * step_size, i * step_size + patch_size
@@ -91,17 +91,24 @@ def run(results, config ):
 
                     
                     complete_output[:, start_height:end_height, start_width:end_width] +=cur_output
-
+            if return_whole:
+                return complete_output
             complete_output = np.argmax(complete_output, axis=0)
 
             complete_output_final = np.zeros_like(complete_output)
-            for val in results['class_dict']:
-                complete_output_final[complete_output == val] = results['class_dict'][val]  
+            if not use_orig_values:
+                for val in results['class_dict']:
+                    complete_output_final[complete_output == val] = results['class_dict'][val]  
+            else:
+                complete_output_final = complete_output
+
+
+            # output
             cur_image = Image.fromarray(complete_output_final.astype(np.uint8))
-            filename = ''.join(['0' for _ in range(5-len(str(k)))]) + str(k) + ".tif"
-            full_filename = oj(results['result_folder'],filename)
-    
-            cur_image.save(full_filename)
+            output_imgs.append(cur_image)
+       
+    return output_imgs
+
             
 
 
@@ -130,5 +137,26 @@ if __name__ == "__main__":
 
         results[str(arg)] = getattr(args, arg)
 
+
+
+    # make model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = UNet( n_channels=1, n_classes=results["num_classes"] ).to(device=device)
+    #check if there is a model
+    if os.path.exists(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")):
+        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'] + ".pt")))
+    else:
+        net.load_state_dict(torch.load(oj(config["PATHS"]["model_path"],results['file_name'], "model_state.pt")))
+
+    data_min, data_max = results['data_min'], results['data_max']
+    input_imgs = io.imread(args.input_folder)
+
+    output_imgs = run(net, input_imgs, data_min, data_max, args.step_size, results['num_classes'], use_orig_values=False )
+    for k in range(len(output_imgs)):
+        
+
+
+        filename = ''.join(['0' for _ in range(5-len(str(k)))]) + str(k) + ".tif"
+        full_filename = oj(results['result_folder'],filename)
     
-    run( results=results, config=config )
+        output_imgs[k].save(full_filename)

@@ -3,18 +3,27 @@ import torch.nn.functional as F
 # from tqdm import tqdm
 import my_data
 import numpy as np
+from predict import run
 from utils.dice_score import multiclass_dice_coeff
+
 def final_evaluate(net, x_test, y_test, num_classes, device):
 
     net.eval()
 
-    y_pred = []
-    for i in range(len(x_test)):
-        y_pred_nu = net(torch.Tensor(x_test[i]).unsqueeze(0).to(device)).cpu().detach().numpy()
-        y_pred.append(y_pred_nu)
-    y_pred = np.asarray(y_pred).squeeze().argmax(axis=1)
+    y_pred = run(net, x_test, 0, 1, 256, num_classes,use_orig_values = True   ) # xxx
+
+
+    y_pred = np.asarray(y_pred)
+    if len(y_pred.shape) == 2:
+        y_pred = y_pred[None, :]
+
     y_pred_one_hot = torch.nn.functional.one_hot(torch.Tensor(y_pred).to(torch.int64), 
                                                 num_classes=num_classes).permute(0, 3, 1, 2)
+
+    y_test = torch.Tensor(y_test).to(torch.int64)
+    if len(y_test.shape) == 2:
+        y_test = y_test[None, :]
+
     result = multiclass_dice_coeff(y_pred_one_hot.float(), 
                         torch.Tensor(y_test), 
                         num_classes=num_classes).item()

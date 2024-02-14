@@ -8,7 +8,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "FullDatasetTraining",
+        "BFullDatasetTraining",
     ],
     "learningrate": [ 0.0001,  ],
     "seed": [x for x in range(3)],

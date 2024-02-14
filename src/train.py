@@ -57,7 +57,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                     masks_pred = masks_pred.permute(0, 2, 3, 1).contiguous().view(-1, num_classes)
                     true_masks = true_masks.view(-1)
 
-                    loss = criterion(masks_pred, true_masks) #xxx
+                    loss = criterion(masks_pred, true_masks)
                     loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                     optimizer.zero_grad(set_to_none=True)
                     grad_scaler.scale(loss + loss_dice).backward()
@@ -83,7 +83,7 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                 # grad_scaler.scale(loss ).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
-                epoch_loss += loss.item()  # + loss_dice.item() # xxx
+                epoch_loss += loss.item()  
                 # epoch_loss += loss.item() 
         if i >= num_batches:
             break
@@ -190,6 +190,8 @@ def run(device, args):
     print("Start training")
     # tqdm total is patience if add step is unequal zero, otherwise args.epoch
 
+
+
     tqdm_total = patience if args.add_step != 0 and is_human_annotation else args.epochs
     init_epochs = len(
         results["val_scores"]
@@ -214,7 +216,8 @@ def run(device, args):
         else:
             cur_patience += 1
         # print(args.epochs)
-        if cur_patience > patience or epoch == args.epochs:  
+        if cur_patience > patience or epoch == args.epochs:   
+        
    
         
             net.eval()
@@ -269,7 +272,7 @@ def run(device, args):
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     best_val_score = 0
                     best_weights = None
-                    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device) # reset the model XXX
+                    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device) # reset the model
                     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
                     grad_scaler = torch.cuda.amp.GradScaler()
                     print( "Added {} samples to the training set".format( len(add_train_ids) ) )
@@ -290,7 +293,7 @@ def run(device, args):
                         x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], 'lno') )
                         
                         x_test, y_test = x[-1:], y[-1:]
-                        x_test, y_test = my_data.stack_imgs(x_test, y_test)
+                        # x_test, y_test = my_data.stack_imgs(x_test, y_test)
                         x_test = (x_test - data_min) / (data_max - data_min)
 
                         results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 
@@ -302,9 +305,10 @@ def run(device, args):
                         n_train = len(x) - n_val
                         val_idxs = all_idxs[n_train:]
                         
-                        x_val, y_val = my_data.stack_imgs(x[val_idxs], y[val_idxs])
-                        x_val = (x_val - data_min) / (data_max - data_min)
-                        results["final_dice_score"] = evaluate.final_evaluate(net, x_val, y_val,
+                        # x_val, y_val = my_data.stack_imgs(x[val_idxs], y[val_idxs])
+                        x_val = (x[val_idxs] - data_min) / (data_max - data_min)
+                        y_val = y[val_idxs]
+                        results["final_dice_score"] = evaluate.final_evaluate(net, x_val,y_val,
                                                                             num_classes, device)
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
@@ -323,12 +327,12 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=8, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.0, )
-    parser.add_argument( "--foldername", type=str, default="DataGrSi", )
+    parser.add_argument( "--foldername", type=str, default="lno", )
 
     parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
     parser.add_argument( "--learningrate", "-l", type=float, default=0.001, dest="lr", )
-    parser.add_argument( "--image-size", dest="image_size", type=int, default=317, ) # XXX debug
+    parser.add_argument( "--image-size", dest="image_size", type=int, default=128, ) 
     parser.add_argument( "--add_size", type=int, help="How many patches should be added to the training set in each round", default=4, )
     parser.add_argument( "--offset", dest="offset", type=int, default=64, )
     parser.add_argument( "--seed", "-t", type=int, default=42, )
