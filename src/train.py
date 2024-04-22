@@ -6,8 +6,6 @@ import my_data
 from os.path import join as oj
 import torch
 torch.backends.cudnn.deterministic = True
-# import torch.nn as nn
-# from torch.optim.lr_scheduler import ReduceLROnPlateau 
 from tqdm import tqdm
 from focal_loss.focal_loss import FocalLoss
 import sys
