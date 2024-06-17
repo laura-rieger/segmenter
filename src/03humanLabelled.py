@@ -38,7 +38,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_nested.py "
 
     for j, key in enumerate(keys):
 

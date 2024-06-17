@@ -40,24 +40,25 @@ def multiclass_dice_coeff(
     num_classes: int,
     reduce_batch_first: bool = False,
     epsilon=1e-6, 
+    separated_up = False
 ):
     # Average of Dice coefficient for all classes
     # assert input.size() == target.size()
-    dice = 0
-    mask_val = 255
-    for channel in range(num_classes):
-        new_dice = dice_coeff(
-            input[:, channel, ...],
-            (target == channel).float(),
-            target != mask_val,
-            reduce_batch_first=reduce_batch_first,
-            epsilon=epsilon,
-        )
-        
-        dice += new_dice
-  
 
-    return dice / input.shape[1]
+    dice = 0
+    for i,channel in enumerate(range(num_classes)):
+        if not separated_up or i !=0:
+            dice += dice_coeff(
+                input[:, channel, ...],
+                (target == channel).float(),
+                target != 255,
+                reduce_batch_first=reduce_batch_first,
+                epsilon=epsilon,
+            ) 
+    if not separated_up:                                  
+        return dice / input.shape[1]
+    else:
+        return dice / (input.shape[1]-1)
 
 
 def dice_loss(input: Tensor, target: Tensor, num_classes, multiclass: bool = False):

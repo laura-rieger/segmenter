@@ -8,29 +8,18 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BNoActiveLearning",
+        "CFullDatasetTrainingGraphite",
     ],
-    "learningrate": [0.0001],
-    "seed": [x for x in range(3)],
+    "learningrate": [ 0.0001,  ],
+    "seed": [x for x in range(5)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128,],
-    "foldername": [
-        "lno_halfHour", 
-    ],
-    "poolname": [
-        "lno", # "lno_human",
-    ],
-    "epochs": [
-        1000,
-    ],
-    "image-size": [
-        128,
-    ],
-
-    "offset": [
-        64,
-    ],
+    "foldername": [ "graphite", ],
+    "poolname": [ "graphite", ], # "lno_human", ],
+    "epochs": [ 300, ],
+    "image-size": [ 128, ],
+    "offset": [ 64, ],
 }
 
 keys = sorted(params_to_vary.keys())
@@ -44,7 +33,7 @@ for i in range(len(param_combinations)):
         partition="sm3090el8",
         N=1,
         n=8,
-        time="0-02:15:00",
+        time="0-01:15:00",
         mem="10G",
         gres="gpu:RTX3090:1",
     )

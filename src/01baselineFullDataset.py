@@ -8,10 +8,10 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BFullDatasetTraining",
+        "FullDatasetTraining",
     ],
     "learningrate": [ 0.0001,  ],
-    "seed": [x for x in range(5)],
+    "seed": [x for x in range(3)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128,],
@@ -38,7 +38,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_nested.py "
 
     for j, key in enumerate(keys):
 

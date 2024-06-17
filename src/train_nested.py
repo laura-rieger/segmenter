@@ -17,7 +17,8 @@ import numpy as np
 from torch.nn import functional as F
 from utils.dice_score import dice_loss
 import evaluate
-from unet import UNet
+import segmentation_models_pytorch as smp
+
 
 is_windows = platform.system() == "Windows"
 num_workers = 0 if is_windows else 4
@@ -59,11 +60,12 @@ def train(net, train_loader, criterion, num_classes, optimizer, device, grad_sca
                     loss_dice = dice_loss( F.softmax(masks_pred, dim=1).float(), true_masks, num_classes, multiclass=True, )
                     optimizer.zero_grad(set_to_none=True)
                     grad_scaler.scale(loss + loss_dice).backward()
-                    masks_pred_np_copy = masks_pred.detach().cpu().numpy()
-                    true_masks_np_copy = true_masks.detach().cpu().numpy()
+
                     # grad_scaler.scale(loss ).backward()
              
                 except:
+                    masks_pred_np_copy = masks_pred.detach().cpu().numpy()
+                    true_masks_np_copy = true_masks.detach().cpu().numpy()
                     print("Error in loss calculation")
                     print(masks_pred.shape)
                     print(true_masks.shape)
@@ -94,6 +96,9 @@ def run(device, args):
     cost_function = getattr(evaluate, args.cost_function)
     is_human_annotation = ( len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1 )
     x, y, num_classes, class_dict = my_data.load_layer_data( oj(config["DATASET"]["data_path"], args.foldername) )
+    if 'half' in args.foldername.lower():
+        x = x[:5]
+        y = y[:5]
     results["class_dict"] = class_dict
     data_min, data_max = np.min(x[:-1]), np.max(x[:-1])
     results["data_min"] = data_min
@@ -170,11 +175,13 @@ def run(device, args):
     print("Start setting up model")
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device)
+  
+    net = smp.UnetPlusPlus(
+    encoder_name="resnet34", encoder_weights='imagenet',  
+    in_channels=1,                  
+    classes=results["num_classes"],
+).to(device=device)
     if args.progress_folder != "":
-    
-        
-        # net.load_state_dict(torch.load(oj(run_folder, "model_state.pt")))
         pass
 
     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
@@ -223,7 +230,7 @@ def run(device, args):
                 cur_patience = 0
 
                 net.load_state_dict(best_weights) 
-                add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size,)
+                add_ids = cost_function( net, device, pool_loader,  (data_min, data_max), n_choose=args.add_size, num_classes=results["num_classes"], criterion=criterion,)
                 num_val_add = np.maximum(int(len(add_ids) * args.val / 100), 1) if args.add_size >1 else 0
 
                 add_train_ids = add_ids[:-num_val_add]
@@ -270,7 +277,11 @@ def run(device, args):
                     pool_loader = DataLoader(pool_set, shuffle=False, **loader_args)
                     best_val_score = 0
                     best_weights = None
-                    net = UNet(n_channels=1, n_classes=results["num_classes"], ).to(device=device) # reset the model
+
+                    net =  smp.UnetPlusPlus(encoder_name="resnet34",   encoder_weights='imagenet',
+                        in_channels=1,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+                        classes=results["num_classes"],                      # model output channels (number of classes in your dataset)
+                    ).to(device=device)
                     optimizer = optim.AdamW(net.parameters(), lr=args.lr, )
                     grad_scaler = torch.cuda.amp.GradScaler()
                     print( "Added {} samples to the training set".format( len(add_train_ids) ) )
@@ -294,8 +305,11 @@ def run(device, args):
                         # x_test, y_test = my_data.stack_imgs(x_test, y_test)
                         x_test = (x_test - data_min) / (data_max - data_min)
 
+                        results["test_dice_score_all"] = evaluate.final_evaluate(net, x_test, y_test, 
+                                                                            num_classes, device, separated_up=False)
+
                         results["test_dice_score"] = evaluate.final_evaluate(net, x_test, y_test, 
-                                                                            num_classes, device)
+                                                                            num_classes, device, separated_up=True)
                         all_idxs = np.arange(len(x))
                         np.random.seed(0)
                         np.random.shuffle(all_idxs)
@@ -319,13 +333,13 @@ def run(device, args):
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description="Train the UNet on images and target masks"
+        description="Train the model on images and target masks"
     )
     parser.add_argument("--epochs", "-e", type=int, default=2000)
-    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=8, )
+    parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=1, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
-    parser.add_argument( "--add_ratio", type=float, default=0.0, )
-    parser.add_argument( "--foldername", type=str, default="lno", )
+    parser.add_argument( "--add_ratio", type=float, default=0.02, )
+    parser.add_argument( "--foldername", type=str, default="graphite", )
 
     parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )

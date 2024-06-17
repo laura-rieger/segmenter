@@ -5,12 +5,14 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "BActiveLearning",
+        "ZActiveLearning",
     ],
 
     "seed": [x for x in range(5)],
-    "cost_function": [ 'cut_off_cost','random_cost'],
-    "add_ratio": [ .02, .04, .06, .08 , .1],
+    "cost_function": [  'emc', ] ,
+    
+    # "cost_function": [ 'bald',],
+    "add_ratio": [ .02, .04, .06, .08, .1], # .04
     'poolname' : ['lno'],
     "batch-size": [128,],
 
@@ -41,7 +43,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_nested.py "
 
     for j, key in enumerate(keys):
 
