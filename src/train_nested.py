@@ -339,7 +339,7 @@ def get_args():
     parser.add_argument( "--batch-size", "-b", dest="batch_size", type=int, default=1, )
     parser.add_argument( "--cost_function", dest="cost_function", type=str, default="cut_off_cost", )
     parser.add_argument( "--add_ratio", type=float, default=0.02, )
-    parser.add_argument( "--foldername", type=str, default="graphite", )
+    parser.add_argument( "--foldername", type=str, default="lno_halfHour", )
 
     parser.add_argument( "--poolname", type=str, default="lno", )
     parser.add_argument( "--experiment_name", "-g", type=str, default="", )
