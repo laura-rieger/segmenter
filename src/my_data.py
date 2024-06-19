@@ -73,7 +73,7 @@ def load_annotated_imgs(data_path, class_dict, data_vals):
     return (return_dataset_train, return_dataset_test)
 
 
-def save_progress(net, image_idxs, images, folder_path,  args, device, results, class_dict, indicator_list, slice_numbers, save_model = True):
+def save_progress(net, image_idxs, images, folder_path,  device, results, class_dict, indicator_list, slice_numbers, save_model = True):
     cur_folder = oj(folder_path, results['file_name'])
     data_min, data_max = results["data_min"], results["data_max"] 
     make_check_folder(folder_path, results['file_name'])
@@ -94,7 +94,6 @@ def save_progress(net, image_idxs, images, folder_path,  args, device, results, 
 
 
     pkl.dump(results, open(oj(cur_folder, "results.pkl"), "wb"))
-    pkl.dump(args, open(oj(cur_folder, "args.pkl"), "wb"))
     pkl.dump(class_dict, open(oj(cur_folder, "class_dict.pkl"), "wb"))
     net.eval()
     with torch.no_grad():
