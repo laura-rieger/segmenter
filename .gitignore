@@ -6,9 +6,10 @@ config.ini
 *.pkl
 *.png
 *.pt
-*.txt
 *.pyc
 *.csv
 *.pdf
 *.zip
 notebooks/Data_comparison.ipynb
+pq_progress_files/*
+progress_files/*

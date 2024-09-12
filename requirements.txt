@@ -1,0 +1,12 @@
+focal_loss_torch==0.1.2
+matplotlib==3.9.2
+numpy==2.1.1
+pandas==2.2.2
+Pillow==10.4.0
+scikit_learn==1.5.2
+segmentation_models_pytorch==0.3.3
+simple_slurm==0.2.7
+skimage==0.0
+tifffile==2023.4.12
+torch==2.2.1
+tqdm==4.66.5
