@@ -1,4 +1,4 @@
-# Active Learning Framework for 3D Electrode Segmentation - README
+# Utilizing active learning to accelerate segmentation of microstructures with tiny annotation budgets - README
 
 ## Overview
 
