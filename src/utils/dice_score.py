@@ -46,19 +46,24 @@ def multiclass_dice_coeff(
     # assert input.size() == target.size()
 
     dice = 0
+    dice_list = [] # xxx
     for i,channel in enumerate(range(num_classes)):
         if not separated_up or i !=0:
-            dice += dice_coeff(
+            add = dice_coeff(
                 input[:, channel, ...],
                 (target == channel).float(),
                 target != 255,
                 reduce_batch_first=reduce_batch_first,
                 epsilon=epsilon,
             ) 
-    if not separated_up:                                  
-        return dice / input.shape[1]
-    else:
+            dice += add
+            dice_list.append(add.item())
+    # return dice_list
+    if separated_up:
         return dice / (input.shape[1]-1)
+    else:
+        return dice / input.shape[1]
+
 
 
 def dice_loss(input: Tensor, target: Tensor, num_classes, multiclass: bool = False):

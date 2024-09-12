@@ -114,9 +114,9 @@ def run(device, args):
         len(os.listdir(oj(config["DATASET"]["data_path"], args.poolname))) == 1
     )
     class_dict = None 
-    # if 'graphite' in args.foldername.lower():# xxx
-    #     # load class dict - for graphite some classes are only in the labelled part but still need to be in the data
-    #     class_dict = pkl.load(open(oj(config["DATASET"]["data_path"],  'graphite_class_dict.pkl'), 'rb'))
+    if 'graphite' in args.foldername.lower():
+    
+        class_dict = pkl.load(open(oj(config["DATASET"]["data_path"],  'graphite_class_dict.pkl'), 'rb'))
     x, y, num_classes, class_dict = my_data.load_layer_data(oj(config["DATASET"]["data_path"], args.foldername), class_dict=class_dict)
     
 
@@ -132,39 +132,24 @@ def run(device, args):
     
     x, y = x[:-1], y[:-1]  # #  don't touch the last full image - left for test
 
-    all_idxs = np.arange(len(x))
-    np.random.seed(0)
-    np.random.shuffle(all_idxs)
-    n_val = np.ceil(len(x) * args.val / 100).astype(int)
-    n_train = len(x) - n_val
-    all_train_idxs = all_idxs[:n_train]
-    val_idxs = all_idxs[n_train:]
 
-    init_train_idxs = all_train_idxs
 
-    train_set = TensorDataset(
+    all_set = TensorDataset(
         *[
             torch.Tensor(input)
             for input in my_data.make_dataset(
-                x[init_train_idxs],
-                y[init_train_idxs],
+                x,
+                y,
                 img_size=args.image_size,
                 offset=args.offset,
             )
         ]
     )
- 
-    val_set = TensorDataset(
-        *[
-            torch.Tensor(input)
-            for input in my_data.make_dataset(
-                x[val_idxs],
-                y[val_idxs],
-                img_size=args.image_size,
-                offset=args.offset,
-            )
-        ]
-    )
+
+    train_set, val_set = torch.utils.data.random_split(all_set, [1- args.val/100,args.val/100])
+
+
+    
     new_val_set = None
     new_val_loader = None
 
@@ -185,7 +170,7 @@ def run(device, args):
 
     else:
         x_pool, y_pool, _, _ = my_data.load_layer_data(
-            oj(config["DATASET"]["data_path"], args.poolname)
+            oj(config["DATASET"]["data_path"], args.poolname), class_dict=class_dict
         )
 
         x_pool, y_pool = x_pool[:-1], y_pool[:-1]
@@ -474,7 +459,6 @@ def run(device, args):
                     )
 
                     x_test, y_test = x[-1:], y[-1:]
-                    # x_test, y_test = my_data.stack_imgs(x_test, y_test)
                     x_test = (x_test - data_min) / (data_max - data_min)
                     # x, y = x[:-1], y[:-1]  
                     print("before test dice all")
@@ -485,19 +469,7 @@ def run(device, args):
                     results["test_dice_score"] = evaluate.final_evaluate(
                         net, x_test, y_test, num_classes, device, separated_up=True
                     )
-                    # all_idxs = np.arange(len(x))
-                    # np.random.seed(0)
-                    # np.random.shuffle(all_idxs)
-                    # n_val = np.ceil(len(x) * args.val / 100).astype(int)
-                    # n_train = len(x) - n_val
-                    # val_idxs = all_idxs[n_train:]
-
-                    # # x_val, y_val = my_data.stack_imgs(x[val_idxs], y[val_idxs])
-                    # x_val = (x[val_idxs] - data_min) / (data_max - data_min)
-                    # y_val = y[val_idxs]
-                    # results["final_dice_score"] = evaluate.final_evaluate(
-                    #     net, x_val, y_val, num_classes, device
-                    # )
+           
                     if not os.path.exists(save_path):
                         os.makedirs(save_path)
                     pkl.dump(
@@ -535,18 +507,18 @@ def get_args():
     parser.add_argument(
         "--add_ratio",
         type=float,
-        default=0.00,
+        default=0.02,
     )
     parser.add_argument(
         "--foldername",
         type=str,
-        default="graphite",
+        default="graphite_halfHour",
     )
 
     parser.add_argument(
         "--poolname",
         type=str,
-        default="lno",
+        default="graphite",
     )
     parser.add_argument(
         "--experiment_name",

@@ -44,7 +44,6 @@ def run(net, input_imgs, data_min, data_max, step_size, num_classes, use_orig_va
 
     net.eval()
 
-    # load data #xxx this does not make sense
     im = input_imgs.squeeze()
     if len(im.shape) == 2:
         im = im[None, :]

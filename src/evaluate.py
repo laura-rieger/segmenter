@@ -10,8 +10,10 @@ from utils.dice_score import multiclass_dice_coeff
 def final_evaluate(net, x_test, y_test, num_classes, device, separated_up = False):
 
     net.eval()
+ 
 
     y_pred = run(net, x_test, 0, 1, 256, num_classes,use_orig_values = True   ) # xxx
+
     y_pred = np.asarray(y_pred)
     if len(y_pred.shape) == 2:
         y_pred = y_pred[None, :]
@@ -26,6 +28,9 @@ def final_evaluate(net, x_test, y_test, num_classes, device, separated_up = Fals
     result = multiclass_dice_coeff(y_pred_one_hot.float(), 
                         torch.Tensor(y_test), 
                         num_classes=num_classes, separated_up= separated_up).item()
+    # denom = (y_pred_one_hot.shape[1]-1) if separated_up else y_pred_one_hot.shape[1] # account for some classes not being there and having 0 in dice score
+    # nom =len(np.unique(y_test)) if separated_up else len(np.unique(y_test)) -1
+    # result = result*denom / nom
         
     return result
 
@@ -57,9 +62,9 @@ def emc(net, device, loader, data_vals, n_choose=-1, num_classes = None, criteri
             true_masks = j * torch.ones(len(masks_pred), dtype = torch.int64).to(device=device, dtype=torch.long)
 
             loss = criterion(masks_pred, true_masks)
-            # go through all layers and look at the gradients
             grad_scaler.scale(loss ).backward()
-            # loss.backward()
+ 
+  
             for param in net.parameters():
                 if param.grad is not None:
                     tot_loss += torch.abs(param.grad).sum()
@@ -73,12 +78,7 @@ def emc(net, device, loader, data_vals, n_choose=-1, num_classes = None, criteri
         return np.argsort(std_arr)
     else:
         return np.argsort(std_arr)[-n_choose:]
-        # #upper five percent
-        # up_five = int(len(loader.dataset) * .05)
-        # pot_idxs = np.argsort(std_arr)[-up_five:]
-        # #randomly choose n_choose from the upper five percent
-        # np.random.seed()
-        # np.random.shuffle(pot_idxs)
+ 
         
 def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,num_classes = None,criterion = None,):
     print(percentile)
@@ -105,7 +105,6 @@ def cut_off_cost(net, device, loader, data_vals, percentile=.5,  n_choose=-1,num
     if n_choose == -1:
         return np.argsort(std_arr)
     else:
-        return np.argsort(std_arr)[-n_choose:]
         up_five = int(len(loader.dataset) * .05)
         pot_idxs = np.argsort(std_arr)[-up_five:]
         np.random.seed()
@@ -122,15 +121,11 @@ def evaluate(net, dataloader, device, num_classes, criterion):
     # iterate over the validation set
 
     for (image, mask_true) in dataloader:
-
         image = image.to(device=device, dtype=torch.float32)
         mask_true = mask_true.to(device=device, dtype=torch.long)
-
         with torch.no_grad():
-
             mask_pred = net(image)
             mask_pred_out = ( F.one_hot(mask_pred.argmax(dim=1), num_classes) .permute(0, 3, 1, 2) .float() )
-        
             # compute the Dice score, which is a metric for segmentation
             dice_score += multiclass_dice_coeff(
                 mask_pred_out[:, :, ...],

@@ -5,21 +5,23 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "DebugTest",
+        "ActiveLearningGr",
     ],
 
-    "seed": [x for x in range(1)],
-    "cost_function": [ 'emc',],
-    'epochs' : [2,],
-    # "cost_function": [ 'bald',],
-    "add_ratio": [ .00, ], 
-    'poolname' : ['lno'],
+    "seed": [x for x in range(5)],
+    "cost_function": [ 'cut_off_cost','random_cost', 'emc' ] ,
+
+    "add_ratio": [.04, .08, .12, ], 
+    'poolname' : ['graphite'],
     "batch-size": [128,],
 
     "learningrate": [ 0.0001,],
     "add_step": [ 1, ],
+    "epochs": [
+        1000,
+    ],
     "add_size": [ 4, ], 
-    "foldername": [ "lno", ],
+    "foldername": [ "graphite_halfHour", ],
 
     "image-size": [ 128, ],
 
@@ -43,7 +45,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train.py "
+    cur_function = "python train_nested_graphite.py "
 
     for j, key in enumerate(keys):
 

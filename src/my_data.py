@@ -5,6 +5,7 @@ import pickle as pkl
 import os
 from os.path import join as oj
 from skimage import io
+import tifffile as tiff
 
 import torch.nn.functional as F
 from PIL import Image
@@ -150,9 +151,11 @@ def load_pool_data(data_path, ):
     files = os.listdir(data_path)
     file_name = files[0]
     im = io.imread(oj(data_path, file_name))
+    # just insanity but I can not figure out why
     if im.shape[2] == 3: # rgb
         im = np.swapaxes(im, 0, 2)
     my_imgs = np.asarray(im)
+    # just 
     if len(my_imgs.shape) < 4:
         my_imgs = my_imgs[:, None]  # unet expects 4d
 
@@ -179,51 +182,47 @@ def stack_imgs(x,y):
                            y[:,  1024:, 1024:], y[:,  1024:, :1024], ] )
     return x_return, y_return
 
-def load_layer_data(data_path, vmax=-1, vmin =-1):
+def load_layer_data(data_path, vmax=-1, vmin =-1, class_dict = None):
     files = sorted(os.listdir(data_path))
+
     if len(files) < 2:
         return load_pool_data(data_path)
     my_data = []
+    print(files)
+    print(data_path)
     for file_name in files:  # careful: currently depends on order of files
-
-        im = io.imread(oj(data_path, file_name))
-        if im.shape[2] == 3:
-            im = np.swapaxes(im, 0, 2)
-        # imgs = np.vstack(
-        #     [
-        #         im[:, :1024, :1024],
-        #         im[:, :1024, 1024:],
-        #         im[:, 1024:, 1024:],
-        #         im[:, 1024:, :1024],
-        #     ]
-        # )
-
+        with tiff.TiffFile(oj(data_path, file_name)) as tif:
+            im = tif.asarray()
+        # im = io.imread(oj(data_pa
         my_imgs = np.asarray(im)
-        
+
+        if my_imgs.shape[-1] == np.min(im.shape): # rgb
+            my_imgs = np.swapaxes(my_imgs, 0, -1)
 
         my_data.append(my_imgs)
 
-    # assume that first is x, second y
-    my_data[0] = my_data[0].astype(float)
-    # print(my_data[0].dtype)
-
-    # my_data[0] /= my_data[0].max()
     if len(my_data[0].shape) < 4:
 
         my_data[0] = my_data[0][:, None]  # unet expects 4d
-    my_data[1], num_classes, class_dict = make_classes(my_data[1])
+
+    my_data[1], num_classes, class_dict = make_classes(my_data[1], class_dict = class_dict)
+
     return my_data[0], my_data[1], num_classes, class_dict, 
 
 
-def make_classes(y):
+def make_classes(y, class_dict = None):
     y_all = np.zeros_like(y)
-    class_vals = np.unique(y)
+    if class_dict is not None:
+        class_vals = np.asarray(list(class_dict.values()))
+    else:
+        class_vals = np.unique(y)
     # print(class_vals)
     class_vals = class_vals[class_vals != 0]  # unmarked pixels do not count in classes
     num_classes = len(class_vals)
     y_all[y == 0] = 255
     my_channels = np.argsort(class_vals)
-    class_dict = {i: class_vals[my_channels[i]] for i in range(num_classes)}
+    if class_dict is None:
+        class_dict = {i: class_vals[my_channels[i]] for i in range(num_classes)}
     for i in range(num_classes):
         y_all[np.where(y == class_vals[my_channels[i]])] = i
     return y_all, num_classes, class_dict

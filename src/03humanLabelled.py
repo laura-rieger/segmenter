@@ -10,10 +10,10 @@ params_to_vary = {
     "seed": [x for x in range(1)],
     "cost_function": [ "cut_off_cost", ], 
     "add_ratio": [ 0.02, ], # what proportion of the pool is added to the training set
-    'poolname' : ['lno_dummy_full'], # xxx not the real pool, our cluster can't handle it :)
+    'poolname' : ['lno_dummy_full'], 
     "batch-size": [32],
     "add_size": [4], # how many images are added each step
-    "add_step": [ 1, ], #how long should there be no improvement before adding more data xxx
+    "add_step": [ 1, ], 
     "foldername": [ "DataLNO", ],
     "epochs": [100],
     "image-size": [ 200, ],

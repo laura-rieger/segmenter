@@ -8,7 +8,7 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "CFullDatasetTrainingGraphite",
+        "GraphiteFull",
     ],
     "learningrate": [ 0.0001,  ],
     "seed": [x for x in range(5)],
@@ -17,7 +17,7 @@ params_to_vary = {
     "batch-size": [128,],
     "foldername": [ "graphite", ],
     "poolname": [ "graphite", ], # "lno_human", ],
-    "epochs": [ 300, ],
+    "epochs": [ 10000, ],
     "image-size": [ 128, ],
     "offset": [ 64, ],
 }
@@ -38,7 +38,7 @@ for i in range(len(param_combinations)):
         gres="gpu:RTX3090:1",
     )
 
-    cur_function = "python train_nested.py "
+    cur_function = "python train_nested_graphite.py "
 
     for j, key in enumerate(keys):
 

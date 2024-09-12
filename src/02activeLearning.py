@@ -5,14 +5,13 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "ZActiveLearning",
+        "ActiveLearning",
     ],
 
     "seed": [x for x in range(5)],
     "cost_function": [  'emc', ] ,
     
-    # "cost_function": [ 'bald',],
-    "add_ratio": [ .02, .04, .06, .08, .1], # .04
+    "add_ratio": [ .02,  .04, .06, .08, .1, ], 
     'poolname' : ['lno'],
     "batch-size": [128,],
 

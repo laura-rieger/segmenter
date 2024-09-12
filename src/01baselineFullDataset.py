@@ -8,10 +8,10 @@ import platform
 is_windows = platform.system() == "Windows"
 params_to_vary = {
     "experiment_name": [
-        "FullDatasetTraining",
+        "FullDataset",
     ],
     "learningrate": [ 0.0001,  ],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(5)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128,],

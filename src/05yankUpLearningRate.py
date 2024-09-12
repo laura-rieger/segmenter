@@ -11,7 +11,7 @@ params_to_vary = {
         "LearningRate",
     ],
     "learningrate": [  0.1,  0.01,  0.001,  0.0001,  0.00001,  0.000001, 1 ],
-    "seed": [x for x in range(3)],
+    "seed": [x for x in range(5)],
     "cost_function": ["random_cost",],
     "add_ratio": [.0, ],
     "batch-size": [128,],
